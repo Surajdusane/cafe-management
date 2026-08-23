@@ -27,4 +27,6 @@ def get_db():
 
 def init_db() -> None:
     config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    import app.models  # noqa: F401 - registers model classes on Base before create_all
+
     Base.metadata.create_all(bind=engine)

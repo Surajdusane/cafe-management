@@ -19,17 +19,106 @@
           <h2>Settings</h2>
           <p class="lede">Cafe profile, tax rate, currency and receipt details.</p>
         </div>
-        <span class="badge badge-planned">Planned · Phase 2</span>
+        <span class="badge badge-ok">Live · Phase 2</span>
       </section>
-      <section class="card placeholder-card">
-        <div class="ph-icon" data-icon="settings"></div>
-        <h3>Coming soon</h3>
-        <p>Phase 2 stores your cafe name, address, logo, tax percentage and receipt footer used across the system.</p>
-        <a class="btn btn-ghost" href="/">Back to dashboard</a>
-      </section>
+
+      <form id="settingsForm" class="settings-grid" novalidate>
+        <section class="card form-card">
+          <header class="card-head">
+            <h3>Cafe profile</h3>
+          </header>
+          <div class="card-body">
+            <div id="formSkeleton" class="form-grid" aria-hidden="true">
+              <div class="field"><div class="skeleton-line" style="width:38%"></div><div class="skeleton-line"></div></div>
+              <div class="field"><div class="skeleton-line" style="width:30%"></div><div class="skeleton-line"></div></div>
+              <div class="field"><div class="skeleton-line" style="width:34%"></div><div class="skeleton-line"></div></div>
+              <div class="field"><div class="skeleton-line" style="width:26%"></div><div class="skeleton-line"></div></div>
+            </div>
+
+            <div id="formFields" class="form-grid" hidden>
+              <div class="field span-2">
+                <label for="cafeName">Cafe name <span class="req">*</span></label>
+                <input class="input" id="cafeName" name="cafe_name" type="text" maxlength="100"
+                       data-validate="required|maxLength:100" autocomplete="organization" disabled />
+              </div>
+              <div class="field">
+                <label for="phone">Phone number</label>
+                <input class="input" id="phone" name="phone" type="tel" maxlength="10" inputmode="numeric"
+                       placeholder="10-digit mobile number" data-validate="pattern:phone|maxLength:15" disabled />
+                <span class="hint">Shown on receipts if filled</span>
+              </div>
+              <div class="field">
+                <label for="email">Email</label>
+                <input class="input" id="email" name="email" type="email" maxlength="100"
+                       data-validate="pattern:email|maxLength:100" disabled />
+              </div>
+              <div class="field span-2">
+                <label for="address">Cafe address</label>
+                <textarea class="input" id="address" name="address" maxlength="255"
+                          data-validate="maxLength:255" disabled></textarea>
+              </div>
+              <div class="field span-2">
+                <label for="logoUrl">Logo URL or path</label>
+                <input class="input" id="logoUrl" name="logo_url" type="text" maxlength="300"
+                       placeholder="/static/images/logo.png or https://…" data-validate="maxLength:300" disabled />
+                <div class="logo-preview-row">
+                  <img id="logoPreview" alt="Cafe logo preview" hidden />
+                  <div id="logoFallback" class="logo-fallback" aria-hidden="true">No logo set</div>
+                </div>
+                <span class="hint">Upload a file to static/images/ and reference it here</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card form-card">
+          <header class="card-head">
+            <h3>Billing &amp; receipt</h3>
+          </header>
+          <div class="card-body">
+            <div id="billingSkeleton" class="form-grid" aria-hidden="true">
+              <div class="field"><div class="skeleton-line" style="width:42%"></div><div class="skeleton-line"></div></div>
+              <div class="field"><div class="skeleton-line" style="width:28%"></div><div class="skeleton-line"></div></div>
+            </div>
+
+            <div id="billingFields" class="form-grid" hidden>
+              <div class="field">
+                <label for="taxPercent">Tax percentage <span class="req">*</span></label>
+                <input class="input" id="taxPercent" name="tax_percent" type="number" step="0.01" min="0" max="100"
+                       value="0" data-validate="required|nonNegative|maxValue:100" disabled />
+                <span class="hint">Applied on bills (0–100)</span>
+              </div>
+              <div class="field">
+                <label for="currency">Currency symbol <span class="req">*</span></label>
+                <input class="input" id="currency" name="currency" type="text" maxlength="8"
+                       value="₹" data-validate="required|maxLength:8" disabled />
+              </div>
+              <div class="field span-2">
+                <label for="receiptFooter">Receipt footer</label>
+                <textarea class="input" id="receiptFooter" name="receipt_footer" maxlength="200"
+                          placeholder="Thank you for visiting!" data-validate="maxLength:200" disabled></textarea>
+                <span class="hint">Printed at the bottom of every bill</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card form-card settings-actions-card">
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="saveBtn" disabled>
+              <span class="spinner" aria-hidden="true"></span>
+              <span class="btn-label">Save settings</span>
+            </button>
+            <button type="button" class="btn btn-ghost" id="resetBtn" disabled>Discard changes</button>
+            <span id="updatedAtNote" class="hint"></span>
+          </div>
+        </section>
+      </form>
     </div>
   </main>
   <script src="/static/js/api.js"></script>
   <script src="/static/js/common.js"></script>
+  <script src="/static/js/validation.js"></script>
+  <script src="/static/js/settings.js"></script>
 </body>
 </html>

@@ -10,6 +10,7 @@ A final-year project documentation for a web-based Cafe Management System develo
 | ------- | ---------- | --------------------------------------------------- |
 | 1.0     | 2026-08-23 | Initial documentation · Phase 1 Foundation complete |
 | 1.1     | 2026-08-23 | Proper uv project setup (pyproject.toml, uv.lock, cafe-server script) |
+| 1.2     | 2026-08-23 | Phase 2 Cafe Settings implemented (API + UI + tests) |
 
 ---
 
@@ -49,11 +50,12 @@ In the present system the cafe typically works with:
 
 The proposed Cafe Management System is a local web application running on the cafe's computer. Staff manage menu, orders, billing, inventory, suppliers, employees, salaries and expenses through a browser interface backed by a FastAPI server and a single-file SQLite database.
 
-Development follows 17 phases (see Development Phases). Phase 1 — Project Foundation — is complete.
+Development follows 17 phases (see Development Phases). Phases 1 (Foundation) and 2 (Cafe Settings) are complete.
 
 ### Scope of Proposed System
 
 * Centralized management of menu, orders, billing, stock, suppliers, staff and expenses
+* Centralized cafe profile configuration (name, address, tax, currency, receipt footer)
 * Automatic bill calculation with tax and discount
 * Automatic inventory increase when purchases are recorded
 * Basic reports: sales, orders, inventory, purchases, salaries, expenses and estimated profit
@@ -80,7 +82,7 @@ Development follows 17 phases (see Development Phases). Phase 1 — Project Foun
 | 3  | Health API reporting app + database status          | Implemented       |
 | 4  | Consistent JSON success/error response envelope     | Implemented       |
 | 5  | Reusable client utilities (API wrapper, toasts, validation) | Implemented |
-| 6  | Cafe settings management                            | Planned (Phase 2) |
+| 6  | Cafe settings management                            | Implemented       |
 | 7  | Category CRUD                                       | Planned (Phase 3) |
 | 8  | Menu item CRUD with images and availability         | Planned (Phase 4) |
 | 9  | Public customer digital menu                        | Planned (Phase 5) |
@@ -132,7 +134,7 @@ Design artefacts are maintained in the `docs/` folder:
 * `docs/DATA_DICTIONARY.md` — field-level dictionary per table
 * `docs/API_DOCUMENTATION.md` — endpoint reference
 
-### Current Architecture (Phase 1)
+### Current Architecture (Phase 2)
 
 ```text
 Browser (HTML/CSS/JS)
@@ -142,10 +144,13 @@ FastAPI application (app/main.py)
    |-- Page routes -> app/templates/*.html
    |-- Static files -> static/css, js, images
    |-- /api/health -> database check
+   |-- /api/settings (GET/PUT) -> routers/settings.py -> settings_service
    `-- Error handlers -> unified JSON envelope
    v
-SQLAlchemy engine -> data/cafe.db (SQLite)
+SQLAlchemy models (app/models) -> data/cafe.db (SQLite)
 ```
+
+The `cafe_settings` table is a singleton (`id = 1`) created automatically on first read. Billing will read `tax_percent`, `currency` and `receipt_footer` from it from Phase 7 onwards.
 
 ## Chapter 5 — I/O Screens
 
@@ -165,7 +170,15 @@ Screens implemented in Phase 1 (screenshots to be captured for final submission)
 | Salaries              | `/salaries`      | Placeholder card (Phase 12)                        |
 | Expenses              | `/expenses`      | Placeholder card (Phase 13)                        |
 | Reports               | `/reports`       | Placeholder card (Phase 14)                        |
-| Settings              | `/settings`      | Placeholder card (Phase 2)                         |
+| Settings              | `/settings`      | **Implemented (Phase 2)** — two-card form: cafe profile + billing/receipt, logo preview, loading skeleton, inline validation, save/discard actions |
+
+### Settings Screen Behaviour (Phase 2)
+
+* Loads saved values from `GET /api/settings`; fields are disabled with a skeleton loader until data arrives
+* Client-side validation (`static/js/validation.js`): required name/currency/tax, phone pattern, email pattern, max lengths, tax range 0–100
+* Server-side validation mirrors the same rules via Pydantic and returns per-field errors which the page maps back onto the form
+* Success/error toasts; "Discard changes" reloads saved values; live logo preview with fallback
+* Responsive two-column layout collapsing to one column under 900px
 
 UI notes: espresso-and-paper theme, Fraunces/Inter typography, grouped navigation (Overview / Sales / Stock & Supply / People / Money & Insight / System), toast notifications, confirm dialogs, empty states, responsive sidebar collapsing under 1024px.
 
@@ -181,17 +194,22 @@ No reports exist yet. Planned from Phase 14: daily/weekly/monthly sales, order s
 * SQLite via `data/cafe.db`
 * HTML/CSS/Vanilla JS frontend; uv as package manager
 
-### Key Files (Phase 1)
+### Key Files
 
-| File                      | Responsibility                                          |
-| ------------------------- | ------------------------------------------------------- |
-| `app/main.py`             | App factory, lifespan init, page routes, error handlers |
-| `app/core/config.py`      | Paths, app name/version, database URL                   |
-| `app/core/database.py`    | Engine, SessionLocal, Base, get_db(), init_db()         |
-| `static/js/api.js`        | Fetch wrapper with ApiError                             |
-| `static/js/common.js`     | Shell injection, navigation, toasts, confirm dialogs    |
-| `static/js/validation.js` | Reusable form validators                                |
-| `tests/`                  | pytest suite (startup + database)                       |
+| File                              | Responsibility                                          |
+| --------------------------------- | ------------------------------------------------------- |
+| `app/main.py`                     | App factory, lifespan init, page routes, error handlers |
+| `app/core/config.py`              | Paths, app name/version, database URL                   |
+| `app/core/database.py`            | Engine, SessionLocal, Base, get_db(), init_db()         |
+| `app/models/cafe_setting.py`      | CafeSetting model (singleton row)                       |
+| `app/schemas/cafe_setting.py`     | Pydantic request/response schemas + validation          |
+| `app/services/settings_service.py`| Get-or-create singleton, update logic                   |
+| `app/routers/settings.py`         | GET/PUT /api/settings                                   |
+| `static/js/api.js`                | Fetch wrapper with ApiError                             |
+| `static/js/common.js`             | Shell injection, navigation, toasts, confirm dialogs    |
+| `static/js/validation.js`         | Reusable form validators                                |
+| `static/js/settings.js`           | Settings form load/save/validation                      |
+| `tests/`                          | pytest suite (startup, database, settings)              |
 
 ### Error Envelope
 
@@ -199,7 +217,7 @@ All API errors return `{ "success": false, "message": ..., "errors": [...] }`; v
 
 ## Chapter 8 — Software System Testing
 
-Automated tests (`uv run pytest`) — 23 passed on 2026-08-23:
+Automated tests (`uv run pytest`) — 38 passed on 2026-08-23:
 
 | Test Case                          | Input                    | Expected Result                     | Status |
 | ---------------------------------- | ------------------------ | ----------------------------------- | ------ |
@@ -209,9 +227,30 @@ Automated tests (`uv run pytest`) — 23 passed on 2026-08-23:
 | Static assets served               | GET css/js/favicon       | 200 correct content type            | Pass   |
 | Database file created at startup   | lifespan init_db()       | data/cafe.db exists                 | Pass   |
 | Session executes query             | SELECT 1 via session     | Returns 1                           | Pass   |
-| No premature domain tables         | Base.metadata            | 0 business tables before Phase 2    | Pass   |
+| No premature domain tables         | Base.metadata            | Only cafe_settings registered       | Pass   |
 
-Manual smoke test (uvicorn live): all 13 pages returned 200; health JSON verified; unknown route 404; static CSS/JS served.
+### Settings Module Test Cases (Phase 2)
+
+| Test Case                        | Input                                  | Expected Result                       | Status |
+| -------------------------------- | -------------------------------------- | ------------------------------------- | ------ |
+| Read settings (first run)        | GET /api/settings                      | 200, defaults created, envelope ok    | Pass   |
+| Valid full update                | All fields with correct values         | 200, values echoed and saved          | Pass   |
+| Whitespace trimming              | `"  Spaced Cafe  "`, empty optionals   | Trimmed; empty optionals stored NULL  | Pass   |
+| Blank cafe name                  | `cafe_name: "   "`                     | 422 with field error                  | Pass   |
+| Missing cafe name                | Field absent                           | 422 with field error                  | Pass   |
+| Name over 100 chars              | 101 characters                         | 422 with field error                  | Pass   |
+| Negative tax                     | `tax_percent: -1`                      | 422 with field error                  | Pass   |
+| Tax above 100                    | `tax_percent: 100.5`                   | 422 with field error                  | Pass   |
+| Invalid phone                    | `"12345"`                              | 422, "valid 10-digit mobile" message  | Pass   |
+| Invalid email                    | `"not-an-email"`                       | 422, email format message             | Pass   |
+| Empty currency                   | `currency: ""`                         | 422 with field error                  | Pass   |
+| Footer over 200 chars            | 201 characters                         | 422 with field error                  | Pass   |
+| Failed update keeps old data     | Invalid PUT after valid PUT            | Saved values unchanged                | Pass   |
+| Persistence across restart       | PUT → dispose engine/new client        | Values still returned after restart   | Pass   |
+
+Manual verification (live uvicorn): server started against a temporary SQLite file; initial GET created defaults; valid PUT saved; server process was killed and restarted; GET returned the saved values — persistence across a real application restart confirmed. An invalid PUT (tax 150) returned HTTP 422.
+
+UI testing (manual): settings form loads with skeleton then populated fields; inline errors appear for invalid phone/email/tax; success toast on save; discard reloads saved values; layout collapses to a single column under 900px viewport width.
 
 ## Chapter 9 — Implementation
 
@@ -262,7 +301,7 @@ QR-code menu access, online ordering/payments, multi-branch support, cloud backu
 | Phase | Module                          | Status      |
 | ----- | ------------------------------- | ----------- |
 | 1     | Project Foundation              | Implemented |
-| 2     | Cafe Settings                   | Planned     |
+| 2     | Cafe Settings                   | Implemented |
 | 3–4   | Categories & Menu Items         | Planned     |
 | 5     | Customer Digital Menu           | Planned     |
 | 6     | Orders                          | Planned     |

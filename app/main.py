@@ -11,6 +11,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core import config
 from app.core.database import Base, engine, get_db, init_db
+from app.routers.settings import router as settings_router
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
@@ -43,6 +44,8 @@ app = FastAPI(title=config.APP_NAME, version=config.APP_VERSION, lifespan=lifesp
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+app.include_router(settings_router)
+
 
 def error_payload(message: str, errors: list | None = None) -> dict:
     payload = {"success": False, "message": message}
@@ -61,7 +64,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     errors = [
         {
             "field": ".".join(str(loc) for loc in error.get("loc", []) if loc != "body"),
-            "message": error.get("msg", "Invalid value"),
+            "message": error.get("msg", "Invalid value").removeprefix("Value error, "),
         }
         for error in exc.errors()
     ]

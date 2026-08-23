@@ -28,4 +28,6 @@
   .stat-grid { grid-template-columns: 1fr; }
   #todayLabel { display: none; }
   .page-head h2 { font-size: 22px; }
+  .form-grid { grid-template-columns: 1fr; }
+  .form-grid .span-2 { grid-column: span 1; }
 }

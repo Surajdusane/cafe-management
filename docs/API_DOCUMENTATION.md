@@ -73,6 +73,77 @@ Returns the list of tables currently present in the database. Useful during deve
 { "success": true, "data": { "tables": [] } }
 ```
 
+### GET /api/settings
+
+Returns the cafe settings. Creates the singleton row with default values on first call, so the response is never empty.
+
+**Response 200**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "cafe_name": "My Cafe",
+    "address": null,
+    "phone": null,
+    "email": null,
+    "logo_url": null,
+    "tax_percent": 0.0,
+    "currency": "₹",
+    "receipt_footer": null,
+    "updated_at": "2026-08-23T09:47:11"
+  }
+}
+```
+
+### PUT /api/settings
+
+Replaces the cafe settings (full update). The server independently validates every field; strings are trimmed and empty optional values are stored as `null`.
+
+**Request body**
+
+| Field           | Type          | Required | Rules                                        |
+| --------------- | ------------- | -------- | -------------------------------------------- |
+| `cafe_name`     | string        | yes      | 1–100 characters                             |
+| `address`       | string / null | no       | max 255 characters                           |
+| `phone`         | string / null | no       | exactly 10 digits, Indian mobile pattern     |
+| `email`         | string / null | no       | valid email format, stored lowercase         |
+| `logo_url`      | string / null | no       | max 300 characters                           |
+| `tax_percent`   | number        | yes      | 0 ≤ value ≤ 100                              |
+| `currency`      | string        | yes      | 1–8 characters                               |
+| `receipt_footer`| string / null | no       | max 200 characters                           |
+
+```json
+{
+  "cafe_name": "Brew & Bean Cafe",
+  "address": "12 Station Road, Pune",
+  "phone": "9876543210",
+  "email": "hello@brewbean.in",
+  "logo_url": "/static/images/logo.png",
+  "tax_percent": 5.5,
+  "currency": "₹",
+  "receipt_footer": "Thank you for visiting!"
+}
+```
+
+**Response 200**
+
+Same shape as `GET /api/settings`, plus `"message": "Settings saved successfully."`.
+
+**Response 422** (validation failure)
+
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": [
+    { "field": "tax_percent", "message": "Input should be less than or equal to 100" },
+    { "field": "phone", "message": "Enter a valid 10-digit mobile number." }
+  ]
+}
+```
+
 ## Error Handling
 
 | Status | Cause                              | Body                                  |
@@ -126,3 +197,5 @@ It parses the envelope, throws `ApiError(message, status, errors)` on failure an
 
 ---
 *Domain endpoints (categories, menu items, orders, billing, etc.) will be documented here as each phase is implemented.*
+
+*Last updated: Phase 2 completion.*

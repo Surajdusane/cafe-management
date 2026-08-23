@@ -34,6 +34,14 @@
     return null;
   }
 
+  function maxValue(value, max) {
+    if (value === "" || value === null || value === undefined) return null;
+    const asNumber = Number(value);
+    if (!Number.isFinite(asNumber)) return "Enter a valid number.";
+    if (asNumber > Number(max)) return `Value cannot be greater than ${max}.`;
+    return null;
+  }
+
   function maxLength(value, max) {
     if (value && String(value).length > Number(max)) {
       return `Must be ${max} characters or fewer.`;
@@ -92,7 +100,7 @@
     return isValid;
   }
 
-  const VALIDATORS = { required, number, positiveNumber, nonNegative, maxLength, pattern };
+  const VALIDATORS = { required, number, positiveNumber, nonNegative, maxValue, maxLength, pattern };
 
   window.Validator = { ...VALIDATORS, showFieldError, clearFieldError, validateForm };
 })();
