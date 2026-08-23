@@ -11,6 +11,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core import config
 from app.core.database import Base, engine, get_db, init_db
+from app.routers.categories import router as categories_router
+from app.routers.menu import router as menu_router
 from app.routers.settings import router as settings_router
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -45,6 +47,8 @@ app = FastAPI(title=config.APP_NAME, version=config.APP_VERSION, lifespan=lifesp
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 app.include_router(settings_router)
+app.include_router(categories_router)
+app.include_router(menu_router)
 
 
 def error_payload(message: str, errors: list | None = None) -> dict:

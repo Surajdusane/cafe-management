@@ -195,12 +195,17 @@
     return `${symbol}${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
+  function escapeHtml(value) {
+    const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+    return String(value === null || value === undefined ? "" : value).replace(/[&<>"']/g, (ch) => map[ch]);
+  }
+
   function formatDate(value) {
     const date = value ? new Date(value) : new Date();
     return date.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
   }
 
-  const UI = { toast, confirmDialog, formatMoney, formatDate, ICONS, NAV };
+  const UI = { toast, confirmDialog, formatMoney, formatDate, escapeHtml, ICONS, NAV };
 
   window.UI = UI;
 

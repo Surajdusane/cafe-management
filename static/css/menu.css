@@ -1,0 +1,126 @@
+/* ---------- Menu Management (Phases 3-4) ---------- */
+
+.menu-section + .menu-section { margin-top: 20px; }
+
+/* Toolbar above tables */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.toolbar .input[type="search"] { flex: 0 1 240px; min-width: 180px; width: auto; }
+.toolbar select.input { width: auto; }
+.toolbar-check { margin-left: auto; }
+
+/* Compact header buttons */
+.btn-sm { padding: 6px 12px; font-size: 13px; }
+
+/* Row actions */
+.col-actions { text-align: right; }
+.row-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.btn-row {
+  padding: 4px 10px;
+  font-size: 12.5px;
+  border-radius: 7px;
+}
+
+/* Table thumbnails */
+.thumb,
+.thumb-fallback {
+  width: 46px;
+  height: 46px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fffdf9;
+  display: block;
+}
+.thumb { object-fit: cover; }
+.thumb-fallback {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.thumb-fallback svg { width: 20px; height: 20px; }
+
+.item-cell { display: flex; flex-direction: column; gap: 2px; }
+.item-sub {
+  font-size: 12px;
+  color: var(--muted);
+  max-width: 44ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.item-badges { display: inline-flex; gap: 5px; margin-top: 3px; }
+
+/* Status badges */
+.badge-muted { background: var(--paper); color: var(--muted); border: 1px solid var(--line); }
+.badge-clay { background: var(--clay-tint); color: var(--clay); }
+.badge-popular { background: var(--amber-tint); color: #8a6516; }
+
+/* Loading skeleton rows */
+tr.skeleton-row td { padding: 15px 16px; }
+
+/* Table footer note */
+.table-note {
+  padding: 11px 20px;
+  font-size: 12.5px;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+}
+
+/* Wider modals for forms */
+.modal-lg { width: min(600px, calc(100vw - 40px)); max-height: calc(100vh - 48px); overflow-y: auto; }
+.modal-box h4 { margin-bottom: 16px; }
+.modal-form-grid { margin-bottom: 18px; }
+
+/* Checkbox rows */
+.check-grid { display: flex; gap: 20px; flex-wrap: wrap; }
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--caramel);
+  cursor: pointer;
+}
+
+/* Image preview inside the item modal */
+.image-preview-row { display: flex; align-items: center; gap: 12px; }
+.image-preview {
+  max-width: 96px;
+  max-height: 72px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fffdf9;
+  object-fit: contain;
+  padding: 4px;
+}
+.image-fallback {
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--paper);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+
+@media (max-width: 700px) {
+  .toolbar .input[type="search"] { flex: 1 1 100%; }
+  .row-actions { justify-content: flex-start; }
+  .col-actions { text-align: left; }
+}

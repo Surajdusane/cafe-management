@@ -28,18 +28,24 @@ def test_session_executes_select():
         assert result == 1
 
 
-def test_metadata_has_no_domain_tables_yet():
-    domain_tables = {
-        "categories",
-        "menu_items",
+def test_metadata_registers_phase_3_4_tables_only():
+    registered = set(Base.metadata.tables.keys())
+
+    assert {"cafe_settings", "categories", "menu_items"}.issubset(registered)
+
+
+def test_metadata_has_no_future_domain_tables_yet():
+    future_tables = {
         "orders",
         "order_items",
         "inventory_items",
+        "inventory_transactions",
         "suppliers",
         "purchases",
+        "purchase_items",
         "employees",
         "salaries",
         "expenses",
     }
 
-    assert not domain_tables.intersection(Base.metadata.tables.keys())
+    assert not future_tables.intersection(Base.metadata.tables.keys())
