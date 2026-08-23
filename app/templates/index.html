@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard · Café Desk</title>
+  <link rel="icon" href="/static/images/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/main.css" />
+  <link rel="stylesheet" href="/static/css/dashboard.css" />
+  <link rel="stylesheet" href="/static/css/responsive.css" />
+</head>
+<body data-page="dashboard">
+  <main class="content">
+    <div class="content-inner">
+
+      <section class="page-head">
+        <div>
+          <h2>Good day at the café</h2>
+          <p class="lede">This is the foundation build. Live numbers will appear here as modules come online.</p>
+        </div>
+        <span id="dbStatus" class="status-chip"><span class="dot"></span><span data-label>Checking…</span></span>
+      </section>
+
+      <section class="stat-grid" aria-label="Key figures">
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Today's Sales</span>
+            <span class="stat-icon tint-caramel" data-icon="billing"></span>
+          </div>
+          <div class="stat-value pending">—</div>
+          <p class="stat-note">Connects when Orders &amp; Billing ship</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Today's Orders</span>
+            <span class="stat-icon tint-sage" data-icon="receipt"></span>
+          </div>
+          <div class="stat-value pending">—</div>
+          <p class="stat-note">Connects when Orders ship</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Menu Items</span>
+            <span class="stat-icon tint-amber" data-icon="menu"></span>
+          </div>
+          <div class="stat-value pending">—</div>
+          <p class="stat-note">Connects when Menu Management ships</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Low Stock</span>
+            <span class="stat-icon tint-clay" data-icon="inventory"></span>
+          </div>
+          <div class="stat-value pending">—</div>
+          <p class="stat-note">Connects when Inventory ships</p>
+        </article>
+      </section>
+
+      <section class="dash-grid">
+        <article class="card">
+          <header class="card-head">
+            <h3>Sales trend</h3>
+            <span class="badge badge-planned">Phase 15</span>
+          </header>
+          <div class="card-body">
+            <div class="trend-box">
+              <div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>
+                <p>The sales chart draws itself once orders start rolling in.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
+          <header class="card-head">
+            <h3>Setup checklist</h3>
+          </header>
+          <div class="card-body">
+            <ul class="setup-list">
+              <li><span class="step-no">✓</span><div><strong>Foundation &amp; navigation</strong><div class="step-meta">Done · Phase 1</div></div></li>
+              <li><span class="step-no">2</span><div><strong>Cafe settings</strong><div class="step-meta">Name, tax, currency, receipt info</div></div></li>
+              <li><span class="step-no">3–4</span><div><strong>Menu categories &amp; items</strong><div class="step-meta">Build your menu</div></div></li>
+              <li><span class="step-no">6–7</span><div><strong>Orders &amp; billing</strong><div class="step-meta">Take orders, print receipts</div></div></li>
+              <li><span class="step-no">8–10</span><div><strong>Suppliers, inventory &amp; purchases</strong><div class="step-meta">Stock the cafe</div></div></li>
+              <li><span class="step-no">11+</span><div><strong>Staff, salaries &amp; expenses</strong><div class="step-meta">Run the team and the books</div></div></li>
+            </ul>
+          </div>
+        </article>
+      </section>
+
+      <section class="card" style="margin-top: 16px;">
+        <header class="card-head">
+          <h3>Recent orders</h3>
+          <a href="/orders">View orders →</a>
+        </header>
+        <div class="empty-state">
+          <div class="es-icon" data-icon="receipt"></div>
+          <h4>No orders yet</h4>
+          <p>Orders you take will show up here. The Orders module arrives in Phase 6.</p>
+        </div>
+      </section>
+
+    </div>
+  </main>
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/common.js"></script>
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
