@@ -198,12 +198,59 @@ One recorded stock movement. Every quantity change to a material writes exactly 
 
 **Relationships:** `InventoryTransaction N : 1 InventoryItem` via `item_id`. `balance_after` snapshots the stock level once the movement is applied so the history stays meaningful as later movements change the level.
 
+### Purchase (Phase 10)
+
+One recorded purchase from a supplier. Like orders, all money values are calculated once by the server when the purchase is recorded and never recomputed; the purchase number (`PUR-0001`, derived from the primary key) identifies it on history screens.
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│                          Purchase                            │
+├──────────────────────────────────────────────────────────────┤
+│ PK  id               INTEGER      AUTOINCREMENT              │
+│ U1  purchase_number  VARCHAR(20)  NOT NULL  (PUR-xxxx)       │
+│ FK  supplier_id      INTEGER                 → suppliers     │
+│                                   ON DELETE SET NULL         │
+│     supplier_name    VARCHAR(100) NOT NULL  (snapshot)       │
+│     purchase_date    DATE         NOT NULL (defaults today)  │
+│     subtotal         FLOAT        NOT NULL = Σ line totals   │
+│     total            FLOAT        NOT NULL (= subtotal)      │
+│     payment_status   VARCHAR(10)  NOT NULL                   │
+│         values: "Unpaid" | "Paid"                            │
+│     notes            VARCHAR(255)                            │
+│     created_at       DATETIME     NOT NULL                   │
+│     updated_at       DATETIME                                │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Relationships:** `Purchase 1 : N PurchaseItem` via `purchase_items.purchase_id` — deleting a purchase removes its lines (ORM cascade + DB `ON DELETE CASCADE`). `Purchase N : 1 Supplier` via `supplier_id` — nullable with `ON DELETE SET NULL`; the `supplier_name` snapshot keeps old purchases readable after the supplier master record is deleted.
+
+### PurchaseItem (Phase 10)
+
+One purchased material line inside a purchase. `item_name` and `unit` are copied from the raw material at purchase time so lines stay readable even if the material is renamed or deleted later.
+
+```text
+┌────────────────────────────────────────────────────────────────┐
+│                         PurchaseItem                           │
+├────────────────────────────────────────────────────────────────┤
+│ PK  id                 INTEGER      AUTOINCREMENT              │
+│ FK  purchase_id        INTEGER      NOT NULL → purchases       │
+│                                     ON DELETE CASCADE          │
+│ FK  inventory_item_id  INTEGER                 → inventory_items│
+│                                     ON DELETE SET NULL         │
+│     item_name          VARCHAR(120) NOT NULL  (snapshot)       │
+│     unit               VARCHAR(12)  NOT NULL  (snapshot)       │
+│     quantity           FLOAT        NOT NULL  (> 0, 3 dp)      │
+│     unit_cost          FLOAT        NOT NULL  (≥ 0, 2 dp)      │
+│     line_total         FLOAT        NOT NULL = qty × unit cost │
+└────────────────────────────────────────────────────────────────┘
+```
+
+**Relationships:** `PurchaseItem N : 1 Purchase` via `purchase_id` (cascade); `PurchaseItem N : 1 InventoryItem` via `inventory_item_id` (`ON DELETE SET NULL`). Not a FK but a business rule: recording the purchase also writes one `Stock In` InventoryTransaction per line and increases `current_quantity` — in the same database transaction as the purchase itself.
+
 ## Planned Entities (not yet created)
 
 | Entity               | Relationship to existing entities           | Phase |
 | -------------------- | ------------------------------------------- | ----- |
-| Purchase             | N : 1 → Supplier; 1 : N → PurchaseItem      | 10    |
-| PurchaseItem         | N : 1 → Purchase, related to InventoryItem  | 10    |
 | Employee             | 1 : N → Salary                              | 11–12 |
 | Expense              | standalone                                  | 13    |
 
@@ -216,6 +263,9 @@ MenuItem             1 ──── N  OrderItem       order_items.menu_item_id 
 Order                1 ──── N  OrderItem       order_items.order_id → orders.id (cascade)
 Supplier             1 ──── N  InventoryItem   inventory_items.supplier_id → suppliers.id (SET NULL)
 InventoryItem        1 ──── N  InventoryTransaction  inventory_transactions.item_id → inventory_items.id (cascade)
+Supplier             1 ──── N  Purchase        purchases.supplier_id → suppliers.id (SET NULL)
+Purchase             1 ──── N  PurchaseItem    purchase_items.purchase_id → purchases.id (CASCADE)
+InventoryItem        1 ──── N  PurchaseItem    purchase_items.inventory_item_id → inventory_items.id (SET NULL)
 ```
 
 ## Business Rules enforced around Orders
@@ -239,6 +289,17 @@ InventoryItem        1 ──── N  InventoryTransaction  inventory_transacti
 * A failed movement writes no history row; every successful one snapshots `balance_after`.
 * Deleting a supplier keeps its materials (link cleared); deleting a material removes its history.
 
+## Business Rules enforced around Purchases
+
+* Purchases are record-only ledger entries — they cannot be edited or deleted, keeping the audit trail intact.
+* The supplier must exist (HTTP 404); every material must exist and be active (404 / HTTP 409).
+* Each material may appear on one line only; quantities must be > 0 (≤ 999999) and unit costs ≥ 0.
+* All money values (`line_total`, `subtotal`, `total`) are calculated server-side from rounded inputs; the client cannot send totals.
+* Purchase creation and inventory update behave as ONE logical database operation: a single commit writes the header, its lines, one `Stock In` movement per line and the updated stock levels — any failure rolls everything back.
+* Every successful purchase writes a `Stock In` history row noting `Purchase PUR-xxxx`.
+* `purchase_date` defaults to today when omitted; payment status starts as Unpaid (or Paid if recorded immediately) and can be toggled later via the API.
+* Deleting a supplier keeps its purchases readable (`supplier_id` cleared, name snapshot retained).
+
 ---
-*Last updated: Phase 8–9 completion (Suppliers + Inventory entities added).*
-*Previous: Phase 6–7 completion (Orders and Billing).*
+*Last updated: Phase 10 completion (Purchase + PurchaseItem entities added).*
+*Previous: Phase 8–9 completion (Suppliers + Inventory entities added).*

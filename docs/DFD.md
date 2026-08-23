@@ -29,10 +29,10 @@ The whole system is a single process interacting with external entities.
 ```
 
 **External entities (current):**
-* **Admin/Cafe staff** — enters and manages cafe settings, menu categories and menu items, orders and payments, suppliers and stock movements through the browser.
+* **Admin/Cafe staff** — enters and manages cafe settings, menu categories and menu items, orders and payments, suppliers, stock movements and supplier purchases through the browser.
 * **Customer** — receives a shareable digital menu link (fully wired in Phase 5).
 
-**Data stores (current):** `data/cafe.db` holding `cafe_settings`, `categories`, `menu_items`, `orders`, `order_items`, `suppliers`, `inventory_items`, `inventory_transactions`.
+**Data stores (current):** `data/cafe.db` holding `cafe_settings`, `categories`, `menu_items`, `orders`, `order_items`, `suppliers`, `inventory_items`, `inventory_transactions`, `purchases`, `purchase_items`.
 
 ## Level-1 DFD
 
@@ -115,8 +115,21 @@ Admin/Staff
 └───────────────────────────────────────────────────────────────────────────────────────┘
             ▲ low-stock flag: level ≤ minimum_stock → warning on page & dashboard
             │
+Admin/Staff
+    │ purchase: supplier, date, items[{material, qty, unit cost}], payment status
+    ▼
+┌───────────────────────────┐  supplier exists? materials active?  ┌──────────────────────────┐
+│ P8  Record Purchases      │  qty > 0? cost ≥ 0? no duplicates?   │ D6 suppliers (read)      │
+│     routers/purchases.py  │─────────────────────────────────────▶│ D7 inventory_items (read)│
+└───────────┬───────────────┘                                      └──────────────────────────┘
+            │ server calculates line totals + grand total, assigns PUR-xxxx
+            │ ONE transaction:
+            ├──▶ D9 purchases / D10 purchase_items   header + material lines
+            └──▶ D7 inventory_items (+qty) with a "Stock In" row in D8 per line
+            ▲ failed validation rolls everything back — stock never half-updates
+            │
 Planned (not yet implemented):
-P8 Purchases (Phase 10) ─▶ automatic Stock In from recorded purchase
+P9 Employees & Salaries (Phases 11–12), P10 Expenses (Phase 13), Reports (Phase 14)
 ```
 
 ### Data dictionary of flows
@@ -145,7 +158,12 @@ P8 Purchases (Phase 10) ─▶ automatic Stock In from recorded purchase
 | Stock validation & update     | P7 ↔ D7/D8           | unit enum + ≥ 0 checks; atomic guarded decrement; balance_after snapshot |
 | Low-stock warning             | P7 → Browser         | is_low_stock flag per item + summary counters         |
 | Movement history              | P7 → Browser         | rows with type, quantity, balance_after, note (newest first) |
+| Purchase payload              | Staff → P8           | supplier_id, purchase_date?, items[{inventory_item_id, quantity, unit_cost}], payment_status?, notes? |
+| Purchase validation           | P8 ↔ D6/D7           | supplier exists (404); materials exist + active (404/409); qty > 0; cost ≥ 0; no duplicate lines |
+| Calculated purchase totals    | P8 → D9/D10/Browser  | line_total = qty × cost; subtotal = total = Σ lines (server-computed) |
+| Automatic stock update        | P8 → D7/D8           | +quantity per material + "Stock In" history row noting `Purchase PUR-xxxx` — same transaction as the header |
+| Purchase history & filters    | P8 → Browser         | rows newest first; search by number/supplier, supplier, payment status, date range; summary totals |
 
 ---
-*Last updated: Phase 8–9 completion (Supplier and Inventory processes added).*
-*Previous: Phase 6–7 completion (Orders and Billing processes added).*
+*Last updated: Phase 10 completion (Purchase recording process added).*
+*Previous: Phase 8–9 completion (Supplier and Inventory processes added).*

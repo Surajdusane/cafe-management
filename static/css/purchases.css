@@ -1,0 +1,24 @@
+/* Purchases page (Phase 10) — small extras on top of the shared orders.css components */
+
+.item-picker .input-cost {
+  width: 110px;
+  flex: none;
+  text-align: center;
+}
+
+.toolbar input[type="date"] {
+  width: auto;
+  min-width: 140px;
+}
+
+/* Editable quantity / cost cells inside the purchase cart */
+.cart-input {
+  width: 90px;
+  text-align: center;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+
+@media (max-width: 700px) {
+  .toolbar input[type="date"] { flex: 1 1 45%; }
+}

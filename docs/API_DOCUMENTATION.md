@@ -619,6 +619,89 @@ Global movement history, newest first.
 
 Each row carries `item_name` alongside the movement fields shown above.
 
+### GET /api/purchases
+
+Purchase history, newest first (by purchase date, then id), with a `summary` block for the page's stat cards.
+
+| Query parameter  | Type   | Default | Notes                                        |
+| ---------------- | ------ | ------- | -------------------------------------------- |
+| `search`         | string | –       | matches purchase number or supplier name     |
+| `supplier_id`    | int    | –       | filter to one supplier                       |
+| `payment_status` | string | –       | `Unpaid` \| `Paid`                            |
+| `start_date`     | date   | –       | ISO `YYYY-MM-DD`, inclusive lower bound      |
+| `end_date`       | date   | –       | ISO `YYYY-MM-DD`, inclusive upper bound      |
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": 7,
+        "purchase_number": "PUR-0007",
+        "supplier_id": 1,
+        "supplier_name": "Gokul Dairy",
+        "purchase_date": "2026-08-23",
+        "subtotal": 940.0,
+        "total": 940.0,
+        "payment_status": "Unpaid",
+        "notes": null,
+        "created_at": "2026-08-23T18:00:00",
+        "item_count": 2
+      }
+    ],
+    "count": 1,
+    "summary": { "count": 1, "total_amount": 940.0, "unpaid_count": 1, "unpaid_amount": 940.0 }
+  }
+}
+```
+
+Invalid `start_date`/`end_date` values return 422 automatically.
+
+### POST /api/purchases
+
+Records a purchase and increases inventory as ONE logical database operation. Validation: `supplier_id` required and must exist (**404** otherwise); every material must exist (**404**) and be active (**409**); each material may appear once (**422** on duplicates); quantities > 0 (≤ 999999); unit costs ≥ 0; at least 1 and at most 50 items; `purchase_date` optional ISO date (defaults to today); `payment_status` optional `Unpaid`/`Paid` (default Unpaid); `notes` ≤ 255.
+
+The client never sends totals: the server rounds quantities to 3 decimals and costs to 2, computes `line_total = quantity × unit_cost`, `subtotal = total = Σ line totals`, assigns the `PUR-xxxx` number from the primary key, adds each material's quantity through a guarded SQL UPDATE and writes one `Stock In` history row per line (`note: "Purchase PUR-xxxx"`). A single commit covers everything — a failure anywhere leaves stock untouched.
+
+```json
+{
+  "supplier_id": 1,
+  "purchase_date": "2026-08-23",
+  "items": [
+    { "inventory_item_id": 1, "quantity": 2.5, "unit_cost": 56 },
+    { "inventory_item_id": 3, "quantity": 1, "unit_cost": 799.99 }
+  ],
+  "notes": "Invoice INV-77"
+}
+```
+
+**Response 201**
+
+```json
+{
+  "success": true,
+  "data": { "...full purchase with items[]...": "" },
+  "message": "Purchase PUR-0007 recorded. Inventory updated for 2 material(s)."
+}
+```
+
+Errors: 404 unknown supplier/material · 409 inactive material · 422 validation failure.
+
+### GET /api/purchases/{purchase_id}
+
+Full detail including material lines and timestamps. **Response 404** if missing.
+
+### PUT /api/purchases/{purchase_id}/payment-status
+
+Marks a purchase paid or reverts it to unpaid.
+
+```json
+{ "payment_status": "Paid" }
+```
+
+**Response 200** — updated purchase. **Responses:** 200 · 404 unknown purchase · 422 invalid status value.
+
 ## Error Handling
 
 | Status | Cause                              | Body                                  |
@@ -656,8 +739,8 @@ The public page loads only `public-menu.css`, `api.js` and `public-menu.js`; the
 
 Everything under `static/` is served at `/static/...`.
 
-- `/static/css/main.css`, `/static/css/dashboard.css`, `/static/css/menu.css`, `/static/css/orders.css`, `/static/css/inventory.css`, `/static/css/responsive.css`, `/static/css/public-menu.css`
-- `/static/js/api.js`, `/static/js/common.js`, `/static/js/validation.js`, `/static/js/dashboard.js`, `/static/js/categories.js`, `/static/js/menu-items.js`, `/static/js/orders.js`, `/static/js/billing.js`, `/static/js/suppliers.js`, `/static/js/inventory.js`, `/static/js/settings.js`, `/static/js/customer-menu.js`, `/static/js/public-menu.js`
+- `/static/css/main.css`, `/static/css/dashboard.css`, `/static/css/menu.css`, `/static/css/orders.css`, `/static/css/inventory.css`, `/static/css/purchases.css`, `/static/css/responsive.css`, `/static/css/public-menu.css`
+- `/static/js/api.js`, `/static/js/common.js`, `/static/js/validation.js`, `/static/js/dashboard.js`, `/static/js/categories.js`, `/static/js/menu-items.js`, `/static/js/orders.js`, `/static/js/billing.js`, `/static/js/suppliers.js`, `/static/js/inventory.js`, `/static/js/purchases.js`, `/static/js/settings.js`, `/static/js/customer-menu.js`, `/static/js/public-menu.js`
 - `/static/images/favicon.svg`
 
 ## Frontend API Utility
@@ -674,5 +757,5 @@ API.delete("/api/items/1")
 It parses the envelope, throws `ApiError(message, status, errors)` on failure and maps network failures to a friendly message. Toast notifications are provided by `UI.toast(message, type)` in `common.js`. The public menu page reuses `api.js` but not `common.js`.
 
 ---
-*Last updated: Phase 8–9 completion (Suppliers and Inventory endpoints).*
-*Previous: Phase 6–7 completion (Orders and Billing endpoints). Categories and menu-item endpoints documented together with their phases (3–4).*
+*Last updated: Phase 10 completion (Purchases endpoints).*
+*Previous: Phase 8–9 completion (Suppliers and Inventory endpoints). Categories and menu-item endpoints documented together with their phases (3–4).*

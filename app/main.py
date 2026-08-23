@@ -17,6 +17,7 @@ from app.routers.inventory import router as inventory_router
 from app.routers.menu import router as menu_router
 from app.routers.orders import router as orders_router
 from app.routers.public_menu import router as public_menu_router
+from app.routers.purchases import router as purchases_router
 from app.routers.settings import router as settings_router
 from app.routers.suppliers import router as suppliers_router
 
@@ -59,6 +60,7 @@ app.include_router(billing_router)
 app.include_router(public_menu_router)
 app.include_router(suppliers_router)
 app.include_router(inventory_router)
+app.include_router(purchases_router)
 
 
 def error_payload(message: str, errors: list | None = None) -> dict:

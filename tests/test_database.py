@@ -40,13 +40,13 @@ def test_metadata_registers_implemented_tables():
         "suppliers",
         "inventory_items",
         "inventory_transactions",
+        "purchases",
+        "purchase_items",
     }.issubset(registered)
 
 
 def test_metadata_has_no_future_domain_tables_yet():
     future_tables = {
-        "purchases",
-        "purchase_items",
         "employees",
         "salaries",
         "expenses",

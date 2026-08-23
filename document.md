@@ -15,6 +15,7 @@ A final-year project documentation for a web-based Cafe Management System develo
 | 1.4     | 2026-08-23 | Phase 5 Customer Digital Menu implemented (public /menu/cafe page + API + tests) |
 | 1.5     | 2026-08-23 | Phases 6–7 Orders & Billing implemented (orders CRUD + workflow, server-calculated bills, payments, printable receipt) |
 | 1.6     | 2026-08-23 | Phases 8–9 Suppliers & Inventory implemented (supplier CRUD, raw materials with units/min stock/supplier link, atomic Stock In/Out/Adjustment movements with history and low-stock warnings) |
+| 1.7     | 2026-08-23 | Phase 10 Purchase Management implemented (multi-item purchases with server-calculated totals, automatic inventory update in one transaction, purchase history with search/date/supplier/payment filters) |
 
 ---
 
@@ -96,7 +97,7 @@ Development follows 17 phases (see Development Phases). Phases 1–9 are complet
 | 11 | Billing with tax/discount and printable receipt     | Implemented       |
 | 12 | Supplier CRUD with search and material counts       | Implemented       |
 | 13 | Inventory with stock movements and low-stock alert  | Implemented       |
-| 14 | Purchases updating inventory automatically          | Planned (Phase 10)|
+| 14 | Purchases updating inventory automatically          | Implemented       |
 | 15 | Employee CRUD                                       | Planned (Phase 11)|
 | 16 | Salary runs (base + bonus − deduction)              | Planned (Phase 12)|
 | 17 | Expense recording                                   | Planned (Phase 13)|
@@ -140,7 +141,7 @@ Design artefacts are maintained in the `docs/` folder:
 * `docs/DATA_DICTIONARY.md` — field-level dictionary per table
 * `docs/API_DOCUMENTATION.md` — endpoint reference
 
-### Current Architecture (Phases 2–9)
+### Current Architecture (Phases 2–10)
 
 ```text
 Browser (HTML/CSS/JS)
@@ -160,6 +161,8 @@ FastAPI application (app/main.py)
     |-- /api/suppliers (CRUD + search) -> routers/suppliers.py -> supplier_service
     |-- /api/inventory (items CRUD, stock movements, history, summary)
     |                            -> routers/inventory.py -> inventory_service
+    |-- /api/purchases (record/list/detail/payment-status)
+    |                            -> routers/purchases.py -> purchase_service
     `-- Error handlers -> unified JSON envelope (400/404/409/422/500)
     v
 SQLAlchemy models (app/models) -> data/cafe.db (SQLite, PRAGMA foreign_keys=ON)
@@ -177,6 +180,8 @@ Supplier data model (Phase 8): `Supplier` is a standalone master table; names ar
 
 Inventory data model (Phase 9): `InventoryItem 1:N InventoryTransaction` (ORM cascade). Material names are unique. `current_quantity` changes **only** through movements: *Stock In* adds units (> 0), *Stock Out* removes units (> 0, refused with HTTP 409 when insufficient), and *Adjustment* sets the level to a physically counted total (≥ 0). Stock Out uses a guarded SQL UPDATE (`WHERE current_quantity >= quantity`), so two simultaneous removals can never oversell the same stock — atomic at the database level. Every movement writes a history row snapshotting the balance afterwards. PUT updates descriptive fields only and never touches quantities. Low stock means `current_quantity <= minimum_stock` (so out-of-stock is always flagged). A non-zero opening stock at creation automatically writes the first "Opening stock" movement.
 
+Purchase data model (Phase 10): `Purchase 1:N PurchaseItem` (`purchase_items.purchase_id`, cascade). The purchase number (`PUR-0001`, derived from the primary key) identifies it on screens; `supplier_name`, `item_name` and `unit` are snapshotted so history stays readable after renames or deletions (`purchases.supplier_id` and `purchase_items.inventory_item_id` are both `ON DELETE SET NULL`). Money formula — calculated exclusively server-side: `line_total = quantity × unit_cost` on rounded inputs; `subtotal = total = Σ line totals`. Recording a purchase is ONE logical database operation: header, lines, a guarded SQL quantity increase per material and one "Stock In" movement row per line all commit together, so a failed purchase never leaves stock half-updated. Purchases are record-only ledger entries — no edit or delete — which keeps the audit trail intact.
+
 ## Chapter 5 — I/O Screens
 
 Screens implemented in Phase 1 (screenshots to be captured for final submission):
@@ -191,7 +196,7 @@ Screens implemented in Phase 1 (screenshots to be captured for final submission)
 | Billing               | `/billing`       | **Implemented (Phase 7)** — collection stat cards, bills table, payment recording, printable receipt |
 | Suppliers             | `/suppliers`     | **Implemented (Phase 8)** — supplier table with search, contact details, material counts, add/edit/delete modal |
 | Inventory             | `/inventory`     | **Implemented (Phase 9)** — stat cards, materials table with stock/min/cost/supplier/low-stock badges, filters, stock movement + history modals, recent movements feed |
-| Purchases             | `/purchases`     | Placeholder card (Phase 10)                        |
+| Purchases             | `/purchases`     | **Implemented (Phase 10)** — stat cards (total purchased / outstanding / count), purchases table with search + supplier/payment/date filters, new-purchase modal with material picker and live totals, detail modal, mark paid/unpaid |
 | Employees             | `/employees`     | Placeholder card (Phase 11)                        |
 | Salaries              | `/salaries`      | Placeholder card (Phase 12)                        |
 | Expenses              | `/expenses`      | Placeholder card (Phase 13)                        |
@@ -231,6 +236,16 @@ The inventory page (`/inventory`) opens with three stat cards — Raw materials,
 **Stock movement modal** ("Stock" row action) — segmented Stock In / Stock Out / Adjustment buttons switch the quantity label and rules live: In/Out demand > 0; Adjustment takes the counted new total (0 allowed). The header shows the current balance vs minimum. A failed Stock Out (insufficient stock) surfaces the server's 409 message and changes nothing.
 
 **Movement history** — per-material history via the "History" action (type, quantity, balance after, note) and a global "Recent stock movements" section listing the latest 25 movements across all materials with type filter, colour-coded ±/= amounts and refresh button.
+
+### Purchases Screen Behaviour (Phase 10)
+
+The purchases page (`/purchases`) opens with three stat cards — Total purchased, Outstanding (unpaid) and Purchases recorded — computed server-side from `GET /api/purchases`' summary block over the filtered result set.
+
+**Purchases table** shows each purchase newest first: number (`PUR-xxxx`), supplier name, purchase date, item count, total and a Paid/Unpaid badge. Row actions: View (detail modal) and Mark paid / Mark unpaid (toggle via `PUT .../payment-status`). Toolbar filters: debounced search across purchase number and supplier name, supplier dropdown, payment-status dropdown and from/to date inputs — all applied server-side.
+
+**New purchase modal** — supplier select (required), date input defaulting to today, and a material picker fed from active raw materials: choosing a material pre-fills its purchase price as the unit cost; quantity and cost inputs are validated client-side (> 0 and ≥ 0). Added lines appear in an editable cart whose per-line amounts and grand total recalculate live (client totals are UX only — the server recalculates everything on POST). Notes are optional. Submitting calls `POST /api/purchases`; the success toast reports the generated number and that inventory was updated. Duplicate materials are refused in the picker ("adjust its quantity below"), mirroring the server's rule.
+
+**Detail modal** — read-only meta list (supplier, date, payment badge, recorded time, notes) plus the material lines (quantity × unit cost = amount) and the total added to inventory.
 
 ### Customer Digital Menu Behaviour (Phase 5)
 
@@ -289,12 +304,14 @@ No reports exist yet. Planned from Phase 14: daily/weekly/monthly sales, order s
 | `app/models/order.py`             | Order + OrderItem models (bill fields, snapshots, cascades) |
 | `app/models/supplier.py`          | Supplier model (unique name, inventory link)            |
 | `app/models/inventory.py`         | InventoryItem + InventoryTransaction (movements, history) |
+| `app/models/purchase.py`          | Purchase + PurchaseItem models (totals, snapshots, cascades) |
 | `app/schemas/cafe_setting.py`     | Pydantic request/response schemas + validation          |
 | `app/schemas/category.py`         | Category create/update/read schemas                     |
 | `app/schemas/menu_item.py`        | Menu item schemas; price > 0, rounding, trims           |
 | `app/schemas/order.py`            | Order create/status/payment/read schemas; qty & discount rules |
 | `app/schemas/supplier.py`         | Supplier schemas; phone/email pattern validation        |
 | `app/schemas/inventory.py`        | Material/movement schemas; unit enum, ≥0 rules, type-conditional qty |
+| `app/schemas/purchase.py`         | Purchase schemas; qty > 0, cost ≥ 0, no duplicate lines |
 | `app/services/settings_service.py`| Get-or-create singleton, update logic                   |
 | `app/services/category_service.py`| Category CRUD, duplicate check, delete guard            |
 | `app/services/menu_item_service.py`| Item CRUD, FK validation, per-category duplicate check |
@@ -302,6 +319,7 @@ No reports exist yet. Planned from Phase 14: daily/weekly/monthly sales, order s
 | `app/services/billing_service.py` | Bill list + summary totals, payment recording           |
 | `app/services/supplier_service.py`| Supplier CRUD, duplicate check, material counts         |
 | `app/services/inventory_service.py`| Material CRUD, atomic stock movements, history, summary |
+| `app/services/purchase_service.py`| Purchase recording with atomic stock update, filters, summary |
 | `app/routers/settings.py`         | GET/PUT /api/settings                                   |
 | `app/routers/categories.py`       | CRUD /api/categories (+search, include_inactive)        |
 | `app/routers/menu.py`             | CRUD /api/menu/items (+filters)                         |
@@ -309,6 +327,7 @@ No reports exist yet. Planned from Phase 14: daily/weekly/monthly sales, order s
 | `app/routers/billing.py`          | Bills API: list/detail/pay                              |
 | `app/routers/suppliers.py`        | Suppliers API: CRUD + search                            |
 | `app/routers/inventory.py`        | Inventory API: items CRUD, /stock movements, history    |
+| `app/routers/purchases.py`        | Purchases API: record/list/detail/payment-status        |
 | `static/js/api.js`                | Fetch wrapper with ApiError                             |
 | `static/js/common.js`             | Shell injection, navigation, toasts, confirm dialogs    |
 | `static/js/validation.js`         | Reusable form validators                                |
@@ -328,7 +347,9 @@ No reports exist yet. Planned from Phase 14: daily/weekly/monthly sales, order s
 | `static/js/suppliers.js`          | Suppliers table, search, add/edit modal                 |
 | `static/js/inventory.js`          | Materials table + filters, stock movement & history modals |
 | `static/css/inventory.css`        | Inventory stat cards, movement badges, segmented control|
-| `tests/`                          | pytest suite (startup, database, settings, categories, menu items, public menu, orders, billing, suppliers, inventory) |
+| `static/js/purchases.js`          | Purchase table + filters, material cart with live totals |
+| `static/css/purchases.css`        | Purchases page extras (picker cost field, date inputs)  |
+| `tests/`                          | pytest suite (startup, database, settings, categories, menu items, public menu, orders, billing, suppliers, inventory, purchases) |
 
 ### Error Envelope
 
@@ -336,7 +357,7 @@ All API errors return `{ "success": false, "message": ..., "errors": [...] }`; v
 
 ## Chapter 8 — Software System Testing
 
-Automated tests (`uv run pytest`) — 227 passed on 2026-08-23 (startup 19, database 5, settings 15, categories 22, menu items 32, public menu 9, orders 37, billing 19, suppliers 30, inventory 59):
+Automated tests (`uv run pytest`) — 248 passed on 2026-08-23 (startup 19, database 5, settings 15, categories 22, menu items 32, public menu 9, orders 37, billing 19, suppliers 30, inventory 59, purchases 21):
 
 | Test Case                          | Input                    | Expected Result                     | Status |
 | ---------------------------------- | ------------------------ | ----------------------------------- | ------ |
@@ -346,8 +367,8 @@ Automated tests (`uv run pytest`) — 227 passed on 2026-08-23 (startup 19, data
 | Static assets served               | GET css/js/favicon       | 200 correct content type            | Pass   |
 | Database file created at startup   | lifespan init_db()       | data/cafe.db exists                 | Pass   |
 | Session executes query             | SELECT 1 via session     | Returns 1                           | Pass   |
-| Implemented tables registered      | Base.metadata            | cafe_settings, categories, menu_items, orders, order_items, suppliers, inventory_items, inventory_transactions present | Pass |
-| No future domain tables            | Base.metadata            | purchases/employees/salaries/expenses absent | Pass |
+| Implemented tables registered      | Base.metadata            | cafe_settings, categories, menu_items, orders, order_items, suppliers, inventory_items, inventory_transactions, purchases, purchase_items present | Pass |
+| No future domain tables            | Base.metadata            | employees/salaries/expenses absent | Pass |
 
 ### Settings Module Test Cases (Phase 2)
 
@@ -542,6 +563,30 @@ Tests use a unique per-run name tag, so reruns never collide with leftover data.
 
 Live smoke test (uvicorn on a free port against a temporary SQLite file): `/suppliers` and `/inventory` pages served their markup with their page scripts wired; a supplier and a material (Milk, 10 L opening stock) were created through the API; an 8 L Stock Out returned "New balance: 2.0 Litre", flipping the low-stock flag (minimum 3).
 
+### Purchases Module Test Cases (Phase 10)
+
+Tests use a unique per-run name tag, so reruns never collide with leftover data.
+
+| Test Case                          | Input                                    | Expected Result                              | Status |
+| ---------------------------------- | ---------------------------------------- | -------------------------------------------- | ------ |
+| Successful multi-item purchase     | Supplier + 2 materials                   | 201; PUR-xxxx number; totals server-calculated; date defaults today; Unpaid | Pass |
+| Explicit date + paid status        | purchase_date, payment_status, notes     | Values echoed on the created purchase        | Pass   |
+| Inventory update + history         | 4 L purchased on 10 L stock              | Level 14; newest "Stock In" row notes `Purchase PUR-xxxx`, balance_after 14 | Pass |
+| Multiple materials in one purchase | 3 lines                                  | Every material's level increased correctly   | Pass   |
+| Total rounding                     | qty 3.33341 × cost 10.558                | qty→3.333, cost→10.56, line/total→35.20      | Pass   |
+| Unknown supplier                   | supplier_id 999999                       | 404; nothing created; stock unchanged        | Pass   |
+| Unknown material atomic rollback   | 1 valid + 1 missing line                 | 404; valid material's stock unchanged; no purchase row left | Pass |
+| Inactive material                  | Purchasing an inactive material          | 409 "marked inactive"                        | Pass   |
+| Invalid item lists (parametrised)  | Empty cart, zero/negative qty, negative cost, duplicate material, missing id/cost | 422 each | Pass |
+| Invalid scalars (parametrised)     | supplier_id 0/True/"abc", bad date, bad payment status, overlong notes, boolean qty | 422 each | Pass |
+| List filters                       | search number/supplier, supplier_id, payment_status, date range | Only matching rows; summary counts correct | Pass |
+| Detail + missing id                | GET detail / id 999999                   | 200 full detail with snapshots / 404 envelope | Pass  |
+| Payment status toggle              | Mark Paid → Unpaid → invalid value       | Echoed each way; 422 for invalid             | Pass   |
+| Supplier delete keeps history      | DELETE supplier of a recorded purchase   | Purchase remains; supplier_id NULL; name snapshot kept; total intact | Pass |
+| Persisted in SQLite                | Direct session query after API create    | Exact header + line values found             | Pass   |
+
+Smoke check: `/purchases` page served its markup with `purchases.js` wired; `/api/purchases` returned the summary envelope (`count`, `total_amount`, `unpaid_count`, `unpaid_amount`) on the live server.
+
 ## Chapter 9 — Implementation
 
 ### Installation
@@ -559,7 +604,9 @@ Current UI requires no training beyond navigation; module-specific training will
 
 ### Limitations
 
-* Purchases/employee/salary/expense modules not yet implemented (see roadmap)
+* Employee/salary/expense modules not yet implemented (see roadmap)
+* Purchases are record-only: mistakes cannot be edited or deleted — the audit trail stays intact by design
+* Purchase payments track only Paid/Unpaid; partial payments and supplier ledgers are out of scope
 * Stock usage is recorded manually via Stock Out; recipes do not deduct ingredients automatically
 * Deleting a raw material also deletes its movement history (by design, keeps the demo database clean)
 * Orders cannot be edited after placement — cancel and re-take instead (keeps bills audit-proof)
@@ -602,7 +649,7 @@ QR-code menu access, online ordering/payments, multi-branch support, cloud backu
 | 7     | Billing                         | Implemented |
 | 8     | Suppliers                       | Implemented |
 | 9     | Inventory                       | Implemented |
-| 10    | Purchases                       | Planned     |
+| 10    | Purchases                       | Implemented |
 | 11    | Employees                       | Planned     |
 | 12    | Salaries                        | Planned     |
 | 13    | Expenses                        | Planned     |

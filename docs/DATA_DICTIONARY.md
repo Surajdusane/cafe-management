@@ -2,9 +2,9 @@
 
 This document lists every table that exists in the SQLite database (`data/cafe.db`), with field-level detail. It is updated after each phase.
 
-## Current Status (Phase 9 — Inventory)
+## Current Status (Phase 10 — Purchases)
 
-**Domain tables created so far: 8.** Phase 8–9 added `suppliers`, `inventory_items` (raw materials with live stock levels) and `inventory_transactions` (movement history).
+**Domain tables created so far: 10.** Phase 10 added `purchases` (purchase headers with server-calculated totals) and `purchase_items` (purchased material lines that automatically increase inventory).
 
 | Table                   | Purpose                                       | Phase |
 | ----------------------- | --------------------------------------------- | ----- |
@@ -16,6 +16,8 @@ This document lists every table that exists in the SQLite database (`data/cafe.d
 | suppliers               | Supplier master records                       | 8     |
 | inventory_items         | Raw materials with stock levels               | 9     |
 | inventory_transactions  | Stock movement history                        | 9     |
+| purchases               | Purchase headers with totals and payment      | 10    |
+| purchase_items          | Purchased material lines                      | 10    |
 
 ## Table: cafe_settings
 
@@ -167,16 +169,51 @@ One row per stock movement — the audit trail behind every quantity change. Cre
 
 **Constraints & rules:** In/Out require quantity > 0 while Adjustment requires ≥ 0 (schema-enforced); Stock Out uses an atomic guarded UPDATE (`WHERE current_quantity >= quantity`) so concurrent removals cannot oversell; a failed movement writes nothing, every successful one snapshots `balance_after`; deleting a material deletes its history (cascade).
 
+## Table: purchases
+
+One row per recorded supplier purchase. All money values are calculated once by the server when the purchase is recorded; recording a purchase also increases inventory in the same database transaction. Created in Phase 10.
+
+| Field Name      | Data Type    | Description                                                | Primary Key | Foreign Key                        | Nullable | Example            |
+| --------------- | ------------ | ---------------------------------------------------------- | ----------- | ---------------------------------- | -------- | ------------------ |
+| id              | INTEGER      | Auto-increment identifier                                  | Yes         | No                                 | No       | 1                  |
+| purchase_number | VARCHAR(20)  | Human-friendly number `PUR-xxxx`, derived from id          | No          | No                                 | No       | PUR-0001           |
+| supplier_id     | INTEGER      | Supplier; SET NULL if the supplier is deleted later        | No          | Yes → suppliers (ON DELETE SET NULL)| Yes      | 1                  |
+| supplier_name   | VARCHAR(100) | Supplier name snapshot at purchase time                    | No          | No                                 | No       | Gokul Dairy        |
+| purchase_date   | DATE         | Delivery/invoice date; defaults to today                   | No          | No                                 | No       | 2026-08-23         |
+| subtotal        | FLOAT        | Sum of all line totals (2 dp, server-calculated)           | No          | No                                 | No       | 940.0              |
+| total           | FLOAT        | Grand total (= subtotal for purchases)                     | No          | No                                 | No       | 940.0              |
+| payment_status  | VARCHAR(10)  | "Unpaid" or "Paid"                                         | No          | No                                 | No       | Unpaid             |
+| notes           | VARCHAR(255) | Free-text remark (invoice number…)                         | No          | No                                 | Yes      | Invoice INV-77     |
+| created_at      | DATETIME     | Row creation timestamp (auto)                              | No          | No                                 | No       | 2026-08-23 18:00:00|
+| updated_at      | DATETIME     | Last change timestamp (auto)                               | No          | No                                 | Yes      | 2026-08-23 18:05:12|
+
+**Constraints & rules:** UNIQUE on `purchase_number`; the API refuses unknown suppliers with HTTP 404 and inactive materials with HTTP 409; each material may appear once per purchase; totals are computed exclusively server-side; purchases are record-only — no edit/delete endpoints. Deleting a supplier keeps purchases readable (`supplier_id` cleared, name snapshot retained).
+
+## Table: purchase_items
+
+One row per purchased material line, belonging to exactly one purchase. Created in Phase 10.
+
+| Field Name        | Data Type    | Description                                              | Primary Key | Foreign Key                                       | Nullable | Example    |
+| ----------------- | ------------ | -------------------------------------------------------- | ----------- | ------------------------------------------------- | -------- | ---------- |
+| id                | INTEGER      | Auto-increment identifier                                | Yes         | No                                                | No       | 1          |
+| purchase_id       | INTEGER      | Owning purchase                                          | No          | Yes → purchases (ON DELETE CASCADE)               | No       | 1          |
+| inventory_item_id | INTEGER      | Source raw material; SET NULL if the material is deleted | No          | Yes → inventory_items (ON DELETE SET NULL)        | Yes      | 3          |
+| item_name         | VARCHAR(120) | Material name snapshot at purchase time                  | No          | No                                                | No       | Milk       |
+| unit              | VARCHAR(12)  | Unit snapshot at purchase time                           | No          | No                                                | No       | Litre      |
+| quantity          | FLOAT        | Units purchased; > 0, rounded to 3 dp                    | No          | No                                                | No       | 2.5        |
+| unit_cost         | FLOAT        | Cost per unit agreed with the supplier; ≥ 0, 2 dp        | No          | No                                                | No       | 56.0       |
+| line_total        | FLOAT        | quantity × unit_cost (2 dp, server-calculated)           | No          | No                                                | No       | 140.0      |
+
+**Constraints & rules:** deleting a purchase removes its lines (cascade); snapshots keep history readable after renames/deletions; every successful line also writes one `Stock In` row in `inventory_transactions` (note `Purchase PUR-xxxx`) and increases `current_quantity` — all within the same transaction as the header.
+
 ## Planned Tables (not yet created)
 
 | Table                  | Purpose                                   | Phase |
 | ---------------------- | ----------------------------------------- | ----- |
-| purchases              | Purchase headers                          | 10    |
-| purchase_items         | Purchase line items                       | 10    |
 | employees              | Employee master                           | 11    |
 | salaries               | Salary payments                           | 12    |
 | expenses               | Operating expenses                        | 13    |
 
 ---
-*Last updated: Phase 8–9 completion (suppliers + inventory_items + inventory_transactions added).*
-*Previous: Phase 6–7 completion (orders + order_items added).*
+*Last updated: Phase 10 completion (purchases + purchase_items added).*
+*Previous: Phase 8–9 completion (suppliers + inventory_items + inventory_transactions added).*
