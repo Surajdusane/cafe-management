@@ -9,6 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/main.css" />
+  <link rel="stylesheet" href="/static/css/menu.css" />
+  <link rel="stylesheet" href="/static/css/inventory.css" />
   <link rel="stylesheet" href="/static/css/responsive.css" />
 </head>
 <body data-page="inventory">
@@ -17,19 +19,240 @@
       <section class="page-head">
         <div>
           <h2>Inventory</h2>
-          <p class="lede">Track raw materials, stock levels and low-stock warnings.</p>
+          <p class="lede">Track raw materials, record stock movements and watch low-stock warnings.</p>
         </div>
-        <span class="badge badge-planned">Planned · Phase 9</span>
+        <span class="badge badge-ok">Live · Phase 9</span>
       </section>
-      <section class="card placeholder-card">
-        <div class="ph-icon" data-icon="inventory"></div>
-        <h3>Coming soon</h3>
-        <p>Phase 9 lets you record raw materials with units, minimum levels and stock movements.</p>
-        <a class="btn btn-ghost" href="/">Back to dashboard</a>
+
+      <!-- ===================== Stat cards ===================== -->
+      <section class="stat-cards" id="inventoryStats">
+        <div class="stat-card">
+          <span class="label">Raw materials</span>
+          <span class="value" id="statTotalItems">–</span>
+        </div>
+        <div class="stat-card is-outstanding">
+          <span class="label">Low stock items</span>
+          <span class="value" id="statLowStock">–</span>
+        </div>
+        <div class="stat-card is-collected">
+          <span class="label">Active suppliers</span>
+          <span class="value" id="statSuppliers">–</span>
+        </div>
+      </section>
+
+      <!-- ===================== Raw materials ===================== -->
+      <section class="card menu-section">
+        <header class="card-head">
+          <h3>Raw materials</h3>
+          <button type="button" class="btn btn-primary btn-sm" id="addItemBtn">+ Add material</button>
+        </header>
+        <div class="toolbar inventory-toolbar">
+          <input class="input" id="itemSearch" type="search" placeholder="Search materials…" autocomplete="off" />
+          <select class="input" id="categoryFilter" aria-label="Filter by category">
+            <option value="">All categories</option>
+          </select>
+          <select class="input" id="supplierFilter" aria-label="Filter by supplier">
+            <option value="">All suppliers</option>
+          </select>
+          <label class="check toolbar-check">
+            <input type="checkbox" id="lowStockOnly" />
+            Low stock only
+          </label>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Material</th>
+                <th>Category</th>
+                <th class="num">In stock</th>
+                <th class="num">Min. stock</th>
+                <th class="num">Cost / unit</th>
+                <th>Supplier</th>
+                <th>Status</th>
+                <th class="col-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="itemTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===================== Stock movements ===================== -->
+      <section class="card menu-section">
+        <header class="card-head">
+          <h3>Recent stock movements</h3>
+          <button type="button" class="btn btn-ghost btn-sm" id="refreshHistoryBtn">Refresh</button>
+        </header>
+        <div class="toolbar inventory-toolbar">
+          <select class="input" id="movementTypeFilter" aria-label="Filter by movement type">
+            <option value="">All movements</option>
+            <option value="Stock In">Stock In</option>
+            <option value="Stock Out">Stock Out</option>
+            <option value="Adjustment">Adjustment</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Material</th>
+                <th>Type</th>
+                <th class="num">Quantity</th>
+                <th class="num">Balance after</th>
+                <th>Note</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody"></tbody>
+          </table>
+        </div>
       </section>
     </div>
   </main>
+
+  <!-- ===================== Material modal ===================== -->
+  <div class="modal-overlay" id="itemModal" hidden>
+    <div class="modal-box modal-lg" role="dialog" aria-modal="true" aria-labelledby="itemModalTitle">
+      <h4 id="itemModalTitle">New raw material</h4>
+      <form id="itemForm" novalidate>
+        <div class="form-grid modal-form-grid">
+          <div class="field">
+            <label for="itemName">Material name <span class="req">*</span></label>
+            <input class="input" id="itemName" name="name" type="text" maxlength="120"
+                   placeholder="e.g. Milk" data-validate="required|maxLength:120" />
+            <span class="hint">Must be unique — compared ignoring case</span>
+          </div>
+          <div class="field">
+            <label for="itemCategory">Category <span class="req">*</span></label>
+            <input class="input" id="itemCategory" name="category" type="text" maxlength="80"
+                   list="categorySuggestions" placeholder="e.g. Dairy" data-validate="required|maxLength:80" />
+            <datalist id="categorySuggestions"></datalist>
+            <span class="hint">Dairy, Vegetables, Beverages, Spices…</span>
+          </div>
+          <div class="field">
+            <label for="itemUnit">Unit <span class="req">*</span></label>
+            <select class="input" id="itemUnit" name="unit" data-validate="required">
+              <option value="">Select unit…</option>
+              <option>Kg</option>
+              <option>Gram</option>
+              <option>Litre</option>
+              <option>Millilitre</option>
+              <option>Piece</option>
+              <option>Packet</option>
+              <option>Box</option>
+            </select>
+          </div>
+          <div class="field" id="openingQuantityField">
+            <label for="itemInitialQuantity">Opening stock</label>
+            <input class="input" id="itemInitialQuantity" name="initial_quantity" type="number" step="0.001" min="0"
+                   placeholder="e.g. 10" inputmode="decimal" data-validate="nonNegative|maxValue:999999" value="0" />
+            <span class="hint">Saved as the first “Stock In” movement</span>
+          </div>
+          <div class="field">
+            <label for="itemMinimumStock">Minimum stock <span class="req">*</span></label>
+            <input class="input" id="itemMinimumStock" name="minimum_stock" type="number" step="0.001" min="0"
+                   placeholder="e.g. 2" inputmode="decimal" data-validate="required|nonNegative|maxValue:999999" value="0" />
+            <span class="hint">Warning fires at or below this level</span>
+          </div>
+          <div class="field">
+            <label for="itemPurchasePrice">Purchase price per unit</label>
+            <input class="input" id="itemPurchasePrice" name="purchase_price" type="number" step="0.01" min="0"
+                   placeholder="e.g. 56.00" inputmode="decimal" data-validate="nonNegative|maxValue:999999" value="0" />
+          </div>
+          <div class="field span-2">
+            <label for="itemSupplier">Preferred supplier</label>
+            <select class="input" id="itemSupplier" name="supplier_id">
+              <option value="">No supplier selected</option>
+            </select>
+          </div>
+          <div class="field span-2">
+            <label for="itemNotes">Notes</label>
+            <textarea class="input" id="itemNotes" name="notes" maxlength="255"
+                      placeholder="Storage tips, brand preference…" data-validate="maxLength:255"></textarea>
+          </div>
+          <div class="field span-2">
+            <label class="check">
+              <input type="checkbox" id="itemActive" name="is_active" checked />
+              Active
+            </label>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close-modal>Cancel</button>
+          <button type="submit" class="btn btn-primary" id="itemSaveBtn">
+            <span class="spinner" aria-hidden="true"></span>
+            <span class="btn-label">Save material</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================== Stock movement modal ===================== -->
+  <div class="modal-overlay" id="stockModal" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="stockModalTitle">
+      <h4 id="stockModalTitle">Record stock movement</h4>
+      <p class="stock-current" id="stockCurrentLine">–</p>
+      <form id="stockForm" novalidate>
+        <div class="field">
+          <label>Movement type <span class="req">*</span></label>
+          <div class="segmented" id="movementTypeGroup" role="radiogroup" aria-label="Movement type">
+            <button type="button" class="seg is-selected" data-type="Stock In">↓ Stock In</button>
+            <button type="button" class="seg" data-type="Stock Out">↑ Stock Out</button>
+            <button type="button" class="seg" data-type="Adjustment">⇄ Adjustment</button>
+          </div>
+          <span class="hint" id="movementTypeHint">Adds units to the stock level</span>
+        </div>
+        <div class="field">
+          <label for="stockQuantity"><span id="quantityLabel">Quantity to add</span> <span class="req">*</span></label>
+          <input class="input" id="stockQuantity" name="quantity" type="number" step="0.001" min="0"
+                 placeholder="e.g. 5" inputmode="decimal" data-validate="required|positiveNumber|maxValue:999999" />
+          <span class="hint" id="quantityHint">Must be greater than zero</span>
+        </div>
+        <div class="field">
+          <label for="stockNote">Note</label>
+          <input class="input" id="stockNote" name="note" type="text" maxlength="200"
+                 placeholder="e.g. Morning delivery, damaged carton…" data-validate="maxLength:200" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close-modal>Cancel</button>
+          <button type="submit" class="btn btn-primary" id="stockSaveBtn">
+            <span class="spinner" aria-hidden="true"></span>
+            <span class="btn-label">Record movement</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================== History modal ===================== -->
+  <div class="modal-overlay" id="historyModal" hidden>
+    <div class="modal-box modal-lg" role="dialog" aria-modal="true" aria-labelledby="historyModalTitle">
+      <h4 id="historyModalTitle">Movement history</h4>
+      <div class="table-wrap history-table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Type</th>
+              <th class="num">Quantity</th>
+              <th class="num">Balance after</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody id="historyDetailBody"></tbody>
+        </table>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close-modal>Close</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/js/api.js"></script>
   <script src="/static/js/common.js"></script>
+  <script src="/static/js/validation.js"></script>
+  <script src="/static/js/inventory.js"></script>
 </body>
 </html>

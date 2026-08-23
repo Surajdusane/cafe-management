@@ -124,13 +124,85 @@ One ordered line inside an order. `item_name` and `unit_price` are copied from t
 
 **Relationships:** `OrderItem N : 1 Order` via `order_id`; `OrderItem N : 1 MenuItem` via `menu_item_id` — nullable with `ON DELETE SET NULL` because a deleted menu dish must not erase old bills; the snapshot columns keep the history readable.
 
+### Supplier (Phase 8)
+
+A business the cafe buys raw materials from. Names are unique (any case).
+
+```text
+┌──────────────────────────────────────────────┐
+│                   Supplier                   │
+├──────────────────────────────────────────────┤
+│ PK  id                  INTEGER  AUTOINCREMENT │
+│ U1  name                VARCHAR(100) NOT NULL│
+│     contact_person      VARCHAR(100)         │
+│     phone               VARCHAR(15)  (10-digit pattern when set) │
+│     email               VARCHAR(100) (valid format when set)     │
+│     address             VARCHAR(255)         │
+│     materials_supplied  VARCHAR(255)         │
+│     is_active           BOOLEAN   NOT NULL   │
+│     created_at          DATETIME  NOT NULL   │
+│     updated_at          DATETIME             │
+└──────────────────────────────────────────────┘
+```
+
+**Relationships:** `Supplier 1 : N InventoryItem` via `inventory_items.supplier_id` — an optional "preferred supplier" link on each raw material. Deleting a supplier is always allowed; the FK is `ON DELETE SET NULL`, so materials simply lose the link while their stock and history remain untouched.
+
+### InventoryItem (Phase 9)
+
+A raw material kept in stock. Names are unique. The live level (`current_quantity`) changes only through stock movements.
+
+```text
+┌────────────────────────────────────────────────────────────┐
+│                      InventoryItem                         │
+├────────────────────────────────────────────────────────────┤
+│ PK  id               INTEGER      AUTOINCREMENT            │
+│ U1  name             VARCHAR(120) NOT NULL                 │
+│     category         VARCHAR(80)  NOT NULL (free text)     │
+│     unit             VARCHAR(12)  NOT NULL                 │
+│         values: Kg | Gram | Litre | Millilitre |           │
+│                 Piece | Packet | Box                       │
+│     current_quantity FLOAT        NOT NULL  (≥ 0)          │
+│     minimum_stock    FLOAT        NOT NULL  (≥ 0)          │
+│     purchase_price   FLOAT        NOT NULL  (≥ 0, per unit)│
+│ FK  supplier_id      INTEGER                 → suppliers   │
+│                              ON DELETE SET NULL            │
+│     is_active        BOOLEAN      NOT NULL                 │
+│     notes            VARCHAR(255)                          │
+│     created_at       DATETIME     NOT NULL                 │
+│     updated_at       DATETIME                              │
+└────────────────────────────────────────────────────────────┘
+```
+
+**Relationships:** `InventoryItem 1 : N InventoryTransaction` — deleting a material removes its movement history (ORM cascade). Derived rule: `is_low_stock = current_quantity <= minimum_stock` (out-of-stock is always flagged).
+
+### InventoryTransaction (Phase 9)
+
+One recorded stock movement. Every quantity change to a material writes exactly one of these rows.
+
+```text
+┌──────────────────────────────────────────────────────────┐
+│                  InventoryTransaction                    │
+├──────────────────────────────────────────────────────────┤
+│ PK  id               INTEGER      AUTOINCREMENT          │
+│ FK  item_id          INTEGER      NOT NULL → inventory_items (cascade) │
+│     transaction_type VARCHAR(12)  NOT NULL               │
+│         values: "Stock In" | "Stock Out" | "Adjustment"  │
+│     quantity         FLOAT        NOT NULL               │
+│         Stock In/Out: amount moved (> 0);                │
+│         Adjustment: new counted total (≥ 0)              │
+│     balance_after    FLOAT        NOT NULL  (snapshot)   │
+│     note             VARCHAR(200)                        │
+│     created_at       DATETIME     NOT NULL               │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Relationships:** `InventoryTransaction N : 1 InventoryItem` via `item_id`. `balance_after` snapshots the stock level once the movement is applied so the history stays meaningful as later movements change the level.
+
 ## Planned Entities (not yet created)
 
 | Entity               | Relationship to existing entities           | Phase |
 | -------------------- | ------------------------------------------- | ----- |
-| Supplier             | 1 : N → Purchase                            | 8     |
-| InventoryItem        | 1 : N → InventoryTransaction                | 9     |
-| Purchase             | 1 : N → PurchaseItem                        | 10    |
+| Purchase             | N : 1 → Supplier; 1 : N → PurchaseItem      | 10    |
 | PurchaseItem         | N : 1 → Purchase, related to InventoryItem  | 10    |
 | Employee             | 1 : N → Salary                              | 11–12 |
 | Expense              | standalone                                  | 13    |
@@ -138,10 +210,12 @@ One ordered line inside an order. `item_name` and `unit_price` are copied from t
 ## Cardinality Summary (current database)
 
 ```text
-CafeSetting  ───  (0..1 row, id = 1)          no FK; read by billing for tax snapshot
-Category     1 ──── N  MenuItem               menu_items.category_id → categories.id
-MenuItem     1 ──── N  OrderItem              order_items.menu_item_id → menu_items.id (SET NULL)
-Order        1 ──── N  OrderItem              order_items.order_id → orders.id (cascade)
+CafeSetting          ───  (0..1 row, id = 1)   no FK; read by billing for tax snapshot
+Category             1 ──── N  MenuItem        menu_items.category_id → categories.id
+MenuItem             1 ──── N  OrderItem       order_items.menu_item_id → menu_items.id (SET NULL)
+Order                1 ──── N  OrderItem       order_items.order_id → orders.id (cascade)
+Supplier             1 ──── N  InventoryItem   inventory_items.supplier_id → suppliers.id (SET NULL)
+InventoryItem        1 ──── N  InventoryTransaction  inventory_transactions.item_id → inventory_items.id (cascade)
 ```
 
 ## Business Rules enforced around Orders
@@ -155,6 +229,16 @@ Order        1 ──── N  OrderItem              order_items.order_id → o
 * Only cancelled orders may be hard-deleted.
 * Payment is recorded exclusively through the billing API (`payment_method` + server-set `Paid`); the client never sends payment state.
 
+## Business Rules enforced around Suppliers & Inventory
+
+* Material names and supplier names are unique (case-insensitive check at the API).
+* Quantities, minimum stock and purchase prices can never be negative; opening/movement quantities round to 3 decimals, prices to 2.
+* A material's supplier, when provided, must exist (HTTP 404 otherwise).
+* `current_quantity` changes only through movements: Stock In (> 0), Stock Out (> 0), Adjustment (≥ 0 absolute level).
+* Stock Out is atomic: a guarded SQL UPDATE refuses to go below zero (HTTP 409), so concurrent removals cannot oversell stock.
+* A failed movement writes no history row; every successful one snapshots `balance_after`.
+* Deleting a supplier keeps its materials (link cleared); deleting a material removes its history.
+
 ---
-*Last updated: Phase 6–7 completion (Orders and Billing).*
-*Previous: Phase 5 completion (public menu reads existing tables read-only; no schema change).*
+*Last updated: Phase 8–9 completion (Suppliers + Inventory entities added).*
+*Previous: Phase 6–7 completion (Orders and Billing).*

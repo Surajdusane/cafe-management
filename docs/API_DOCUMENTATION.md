@@ -440,6 +440,185 @@ Records a payment — the only way a bill becomes Paid.
 
 Sets `payment_status = "Paid"`, stores the method and stamps `paid_at`. **Responses:** 200 · 404 unknown bill · 409 already paid or cancelled order · 422 invalid method.
 
+### GET /api/suppliers
+
+Lists suppliers ordered by name, each with a live `inventory_item_count`.
+
+| Query parameter    | Type   | Default | Notes                       |
+| ------------------ | ------ | ------- | --------------------------- |
+| `search`           | string | –       | matches name / contact person / materials / phone |
+| `include_inactive` | bool   | `true`  | set `false` for active only |
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": 1,
+        "name": "Gokul Dairy",
+        "contact_person": "Ramesh Patel",
+        "phone": "9876543210",
+        "email": "orders@gokuldairy.in",
+        "address": "12 Market Yard, Pune",
+        "materials_supplied": "Milk, Paneer, Butter",
+        "is_active": true,
+        "inventory_item_count": 3,
+        "created_at": "2026-08-23T14:00:00",
+        "updated_at": null
+      }
+    ],
+    "count": 1
+  }
+}
+```
+
+### POST /api/suppliers
+
+Creates a supplier. Validation: `name` required (1–100 chars, unique ignoring case → 409 on duplicate); optional `contact_person` ≤100; `phone` must match the 10-digit Indian mobile pattern when provided; `email` must be a valid format and is stored lowercase; `address`/`materials_supplied` ≤255; strings trimmed, empty optionals stored as `null`.
+
+**Response 201** — created supplier. **Responses:** 201 · 409 duplicate name · 422 validation failure.
+
+### GET /api/suppliers/{supplier_id}
+
+Returns one supplier. **Response 404** if missing.
+
+### PUT /api/suppliers/{supplier_id}
+
+Full replace using the same body rules as create (duplicate check excludes the supplier itself). **Responses:** 200 · 404 · 409 · 422.
+
+### DELETE /api/suppliers/{supplier_id}
+
+Deletes the supplier. Raw materials keep all data — their preferred-supplier link is cleared automatically. Returns `"message": "Supplier deleted."`. **Response 404** if missing.
+
+### GET /api/inventory/items
+
+Lists raw materials ordered by name with stock levels, supplier summaries and computed low-stock flags. The response also carries a summary block used by the page's stat cards.
+
+| Query parameter    | Type   | Default | Notes                                     |
+| ------------------ | ------ | ------- | ----------------------------------------- |
+| `search`           | string | –       | matches name/category                     |
+| `category`         | string | –       | exact category match                      |
+| `supplier_id`      | int    | –       | filter to one supplier                    |
+| `low_stock_only`   | bool   | `false` | only items where qty ≤ minimum            |
+| `include_inactive` | bool   | `true`  | set `false` for active only               |
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": 1,
+        "name": "Milk",
+        "category": "Dairy",
+        "unit": "Litre",
+        "current_quantity": 2.0,
+        "minimum_stock": 3.0,
+        "purchase_price": 56.0,
+        "supplier_id": 1,
+        "is_active": true,
+        "notes": null,
+        "created_at": "2026-08-23T14:05:00",
+        "updated_at": "2026-08-23T16:40:11",
+        "supplier": { "id": 1, "name": "Gokul Dairy", "is_active": true },
+        "is_low_stock": true,
+        "transaction_count": 2
+      }
+    ],
+    "count": 1,
+    "summary": { "total_items": 4, "active_items": 3, "low_stock_items": 1, "total_suppliers": 2 }
+  }
+}
+```
+
+### GET /api/inventory/categories
+
+Distinct material categories, sorted — feeds the page filter dropdown and datalist.
+
+```json
+{ "success": true, "data": { "categories": ["Beverages", "Dairy", "Spices"] } }
+```
+
+### POST /api/inventory/items
+
+Creates a raw material. Validation: `name` required 1–120 (unique ignoring case → 409); `category` required ≤80; `unit` one of `Kg, Gram, Litre, Millilitre, Piece, Packet, Box`; `initial_quantity` ≥ 0 (default 0); `minimum_stock` ≥ 0 (default 0); `purchase_price` ≥ 0 (default 0); `supplier_id`, when sent, must exist (**404** otherwise); quantities round to 3 decimals, price to 2. A non-zero opening quantity automatically writes the first history row (`Stock In`, note "Opening stock").
+
+```json
+{
+  "name": "Milk",
+  "category": "Dairy",
+  "unit": "Litre",
+  "initial_quantity": 10,
+  "minimum_stock": 3,
+  "purchase_price": 56,
+  "supplier_id": 1
+}
+```
+
+**Response 201** — item detail including its transactions list. **Responses:** 201 · 404 unknown supplier · 409 duplicate name · 422 validation failure.
+
+### GET /api/inventory/items/{item_id}
+
+Full detail including up to 20 recent movements (newest first). **404** if missing.
+
+### PUT /api/inventory/items/{item_id}
+
+Replaces descriptive fields (same rules as create minus opening quantity). The stock level is intentionally **not** editable here — use stock movements so history stays complete. **Responses:** 200 · 404 · 409 · 422.
+
+### DELETE /api/inventory/items/{item_id}
+
+Deletes the material together with its movement history (cascade). **Response 404** if missing.
+
+### POST /api/inventory/items/{item_id}/stock
+
+Records one stock movement atomically and writes its history row.
+
+```json
+{ "transaction_type": "Stock Out", "quantity": 8, "note": "Morning usage" }
+```
+
+| Field             | Type   | Rules                                                                 |
+| ----------------- | ------ | --------------------------------------------------------------------- |
+| `transaction_type`| string | `"Stock In"` \| `"Stock Out"` \| `"Adjustment"`                        |
+| `quantity`        | number | In/Out: > 0 (amount moved); Adjustment: ≥ 0 (new counted total)       |
+| `note`            | string | optional, ≤200 chars                                                  |
+
+Server behaviour:
+
+* **Stock In** adds units; **Stock Out** subtracts them through an atomic guarded UPDATE — insufficient stock returns **409** ("Not enough stock…") and changes nothing; **Adjustment** sets the absolute level.
+* every successful movement returns the refreshed item plus the written transaction row (with `balance_after`) and a human-readable message.
+
+**Response 200**
+
+```json
+{
+  "success": true,
+  "data": {
+    "item": { "...refreshed material summary...": "" },
+    "transaction": {
+      "id": 5, "item_id": 1, "transaction_type": "Stock Out", "quantity": 8.0,
+      "balance_after": 2.0, "note": "Morning usage", "created_at": "2026-08-23T16:40:11"
+    }
+  },
+  "message": "8.0 Litre removed from 'Milk'. New balance: 2.0 Litre."
+}
+```
+
+Errors: 404 unknown item · 409 insufficient stock · 422 validation failure.
+
+### GET /api/inventory/transactions
+
+Global movement history, newest first.
+
+| Query parameter    | Type   | Default | Notes                                |
+| ------------------ | ------ | ------- | ------------------------------------ |
+| `item_id`          | int    | –       | history of one material              |
+| `transaction_type` | string | –       | Stock In / Stock Out / Adjustment    |
+| `limit`            | int    | 100     | 1–500 rows                           |
+
+Each row carries `item_name` alongside the movement fields shown above.
+
 ## Error Handling
 
 | Status | Cause                              | Body                                  |
@@ -477,8 +656,8 @@ The public page loads only `public-menu.css`, `api.js` and `public-menu.js`; the
 
 Everything under `static/` is served at `/static/...`.
 
-- `/static/css/main.css`, `/static/css/dashboard.css`, `/static/css/menu.css`, `/static/css/orders.css`, `/static/css/responsive.css`, `/static/css/public-menu.css`
-- `/static/js/api.js`, `/static/js/common.js`, `/static/js/validation.js`, `/static/js/dashboard.js`, `/static/js/categories.js`, `/static/js/menu-items.js`, `/static/js/orders.js`, `/static/js/billing.js`, `/static/js/settings.js`, `/static/js/customer-menu.js`, `/static/js/public-menu.js`
+- `/static/css/main.css`, `/static/css/dashboard.css`, `/static/css/menu.css`, `/static/css/orders.css`, `/static/css/inventory.css`, `/static/css/responsive.css`, `/static/css/public-menu.css`
+- `/static/js/api.js`, `/static/js/common.js`, `/static/js/validation.js`, `/static/js/dashboard.js`, `/static/js/categories.js`, `/static/js/menu-items.js`, `/static/js/orders.js`, `/static/js/billing.js`, `/static/js/suppliers.js`, `/static/js/inventory.js`, `/static/js/settings.js`, `/static/js/customer-menu.js`, `/static/js/public-menu.js`
 - `/static/images/favicon.svg`
 
 ## Frontend API Utility
@@ -495,5 +674,5 @@ API.delete("/api/items/1")
 It parses the envelope, throws `ApiError(message, status, errors)` on failure and maps network failures to a friendly message. Toast notifications are provided by `UI.toast(message, type)` in `common.js`. The public menu page reuses `api.js` but not `common.js`.
 
 ---
-*Last updated: Phase 6–7 completion (Orders and Billing endpoints).*
-*Previous: Phase 5 completion (Customer Digital Menu). Categories and menu-item endpoints documented together with their phases (3–4).*
+*Last updated: Phase 8–9 completion (Suppliers and Inventory endpoints).*
+*Previous: Phase 6–7 completion (Orders and Billing endpoints). Categories and menu-item endpoints documented together with their phases (3–4).*

@@ -29,10 +29,10 @@ The whole system is a single process interacting with external entities.
 ```
 
 **External entities (current):**
-* **Admin/Cafe staff** — enters and manages cafe settings, menu categories and menu items through the browser.
+* **Admin/Cafe staff** — enters and manages cafe settings, menu categories and menu items, orders and payments, suppliers and stock movements through the browser.
 * **Customer** — receives a shareable digital menu link (fully wired in Phase 5).
 
-**Data stores (current):** `data/cafe.db` holding `cafe_settings`, `categories`, `menu_items`, `orders`, `order_items`.
+**Data stores (current):** `data/cafe.db` holding `cafe_settings`, `categories`, `menu_items`, `orders`, `order_items`, `suppliers`, `inventory_items`, `inventory_transactions`.
 
 ## Level-1 DFD
 
@@ -95,8 +95,28 @@ Admin/Staff
 Customer (Phase 5): reads branding from D1 and published menu rows from D2/D3 via
 /api/public/menu — read-only, no ids or admin fields.
 
+Admin/Staff
+    │ supplier: name, contact, phone, email, materials supplied
+    ▼
+┌───────────────────────────┐  name unique? phone/email format?   ┌──────────────────────────┐
+│ P6  Manage Suppliers      │────────────────────────────────────▶│ D6 suppliers             │
+│     routers/suppliers.py  │◀──────────────── rows + material counts ─│ id, contact, materials │
+└───────────┬───────────────┘                                     └────────────┬─────────────┘
+            │ supplier_id (optional preferred link)                             │
+            ▼                                                                   │
+┌───────────────────────────┐  unit valid? qty ≥ 0? supplier exists?            │
+│ P7  Track Inventory       │───────────────────────────────────────────────────┘
+│     routers/inventory.py  │
+└───────────┬───────────────┘
+            │ Stock In (+q) / Stock Out (−q, atomic guard qty ≤ balance) / Adjustment (=new total)
+            ▼
+┌───────────────────────────────────────────────────────────────────────────────────────┐
+│ D7 inventory_items / D8 inventory_transactions   level snapshot `balance_after`       │
+└───────────────────────────────────────────────────────────────────────────────────────┘
+            ▲ low-stock flag: level ≤ minimum_stock → warning on page & dashboard
+            │
 Planned (not yet implemented):
-P6 Purchases (Phase 10) ─▶ inventory increase
+P8 Purchases (Phase 10) ─▶ automatic Stock In from recorded purchase
 ```
 
 ### Data dictionary of flows
@@ -117,7 +137,15 @@ P6 Purchases (Phase 10) ─▶ inventory increase
 | Status change                 | Staff → P4           | Pending → Preparing → Ready → Completed / Cancelled   |
 | Payment payload               | Staff → P5           | payment_method: Cash / UPI / Card / Other             |
 | Receipt data                  | P5 → Browser         | bill lines + totals + cafe name/currency/footer      |
+| Supplier payload              | Staff → P6           | name, contact_person, phone, email, address, materials_supplied, is_active |
+| Supplier validation           | P6 → Browser         | 409 duplicate name · 422 phone/email/length errors    |
+| Supplier list                 | P6 → Browser         | items[] each with live inventory_item_count           |
+| Material payload              | Staff → P7           | name, category, unit, opening qty, minimum stock, price, supplier_id? |
+| Movement payload              | Staff → P7           | transaction_type: Stock In / Stock Out / Adjustment; quantity; note? |
+| Stock validation & update     | P7 ↔ D7/D8           | unit enum + ≥ 0 checks; atomic guarded decrement; balance_after snapshot |
+| Low-stock warning             | P7 → Browser         | is_low_stock flag per item + summary counters         |
+| Movement history              | P7 → Browser         | rows with type, quantity, balance_after, note (newest first) |
 
 ---
-*Last updated: Phase 6–7 completion (Orders and Billing processes added).*
-*Previous: Phase 3–4 completion.*
+*Last updated: Phase 8–9 completion (Supplier and Inventory processes added).*
+*Previous: Phase 6–7 completion (Orders and Billing processes added).*

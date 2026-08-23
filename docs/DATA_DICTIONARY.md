@@ -2,17 +2,20 @@
 
 This document lists every table that exists in the SQLite database (`data/cafe.db`), with field-level detail. It is updated after each phase.
 
-## Current Status (Phase 7 — Billing)
+## Current Status (Phase 9 — Inventory)
 
-**Domain tables created so far: 5.** Phase 6–7 added `orders` (order header + bill + payment state) and `order_items` (snapshotted order lines).
+**Domain tables created so far: 8.** Phase 8–9 added `suppliers`, `inventory_items` (raw materials with live stock levels) and `inventory_transactions` (movement history).
 
-| Table          | Purpose                                  | Phase |
-| -------------- | ---------------------------------------- | ----- |
-| cafe_settings  | Cafe profile, tax %, currency, receipt   | 2     |
-| categories     | Menu categories                          | 3     |
-| menu_items     | Menu items with price, image, flags      | 4     |
-| orders         | Order headers with bill and payment      | 6–7   |
-| order_items    | Order line items with price snapshots    | 6     |
+| Table                   | Purpose                                       | Phase |
+| ----------------------- | --------------------------------------------- | ----- |
+| cafe_settings           | Cafe profile, tax %, currency, receipt        | 2     |
+| categories              | Menu categories                               | 3     |
+| menu_items              | Menu items with price, image, flags           | 4     |
+| orders                  | Order headers with bill and payment           | 6–7   |
+| order_items             | Order line items with price snapshots         | 6     |
+| suppliers               | Supplier master records                       | 8     |
+| inventory_items         | Raw materials with stock levels               | 9     |
+| inventory_transactions  | Stock movement history                        | 9     |
 
 ## Table: cafe_settings
 
@@ -108,13 +111,66 @@ One row per ordered dish line, belonging to exactly one order. Created in Phase 
 
 **Constraints & rules:** deleting an order removes its lines (ORM cascade `all, delete-orphan`); snapshots guarantee historical bills never change when the menu changes; the API rejects the same dish twice on one order — raise its quantity instead.
 
+## Table: suppliers
+
+Businesses the cafe buys raw materials from. Created in Phase 8.
+
+| Field Name         | Data Type    | Description                                        | Primary Key | Foreign Key | Nullable | Example                |
+| ------------------ | ------------ | -------------------------------------------------- | ----------- | ----------- | -------- | ---------------------- |
+| id                 | INTEGER      | Auto-increment identifier                          | Yes         | No          | No       | 1                      |
+| name               | VARCHAR(100) | Supplier display name, unique (any case)           | No          | No          | No       | Gokul Dairy            |
+| contact_person     | VARCHAR(100) | Person to call                                     | No          | No          | Yes      | Ramesh Patel           |
+| phone              | VARCHAR(15)  | 10-digit Indian mobile number (validated)          | No          | No          | Yes      | 9876543210             |
+| email              | VARCHAR(100) | Valid email address (stored lowercase)             | No          | No          | Yes      | orders@gokuldairy.in   |
+| address            | VARCHAR(255) | Shop / warehouse address                           | No          | No          | Yes      | 12 Market Yard, Pune   |
+| materials_supplied | VARCHAR(255) | Free-text list of what they supply                 | No          | No          | Yes      | Milk, Paneer, Butter   |
+| is_active          | BOOLEAN      | Active flag; inactive rows hidden when filtered    | No          | No          | No       | 1                      |
+| created_at         | DATETIME     | Row creation timestamp (auto)                      | No          | No          | No       | 2026-08-23 14:00:00    |
+| updated_at         | DATETIME     | Last update timestamp (auto)                       | No          | No          | Yes      | 2026-08-23 15:10:22    |
+
+**Constraints & rules:** UNIQUE on `name` (`uq_suppliers_name`) plus a case-insensitive API check returning HTTP 409; `phone` must match the 10-digit pattern and `email` must be valid when provided; strings are trimmed and empty optionals stored as NULL. Deleting a supplier is always allowed — linked raw materials keep all data with their `supplier_id` cleared.
+
+## Table: inventory_items
+
+Raw materials with their live stock level. Created in Phase 9. The level changes only through movements recorded in `inventory_transactions`.
+
+| Field Name       | Data Type    | Description                                          | Primary Key | Foreign Key                          | Nullable | Example                  |
+| ---------------- | ------------ | ---------------------------------------------------- | ----------- | ------------------------------------ | -------- | ------------------------ |
+| id               | INTEGER      | Auto-increment identifier                            | Yes         | No                                   | No       | 1                        |
+| name             | VARCHAR(120) | Material name, unique (any case)                     | No          | No                                   | No       | Milk                     |
+| category         | VARCHAR(80)  | Free-text grouping (Dairy, Vegetables…)              | No          | No                                   | No       | Dairy                    |
+| unit             | VARCHAR(12)  | Kg / Gram / Litre / Millilitre / Piece / Packet / Box| No          | No                                   | No       | Litre                    |
+| current_quantity | FLOAT        | Live stock level; ≥ 0; changed only via movements    | No          | No                                   | No       | 2.0                      |
+| minimum_stock    | FLOAT        | Low-stock threshold; ≥ 0                             | No          | No                                   | No       | 3.0                      |
+| purchase_price   | FLOAT        | Cost per unit; ≥ 0, rounded to 2 dp                  | No          | No                                   | No       | 56.0                     |
+| supplier_id      | INTEGER      | Preferred supplier; cleared if the supplier is deleted | No        | Yes → suppliers (ON DELETE SET NULL) | Yes      | 1                        |
+| is_active        | BOOLEAN      | Active flag                                          | No          | No                                   | No       | 1                        |
+| notes            | VARCHAR(255) | Storage tips, brand preference…                      | No          | No                                   | Yes      | Keep refrigerated        |
+| created_at       | DATETIME     | Row creation timestamp (auto)                        | No          | No                                   | No       | 2026-08-23 14:05:00      |
+| updated_at       | DATETIME     | Last change timestamp (auto)                         | No          | No                                   | Yes      | 2026-08-23 16:40:11      |
+
+**Constraints & rules:** UNIQUE on `name` (`uq_inventory_items_name`); quantities round to 3 decimals and prices to 2; negative values rejected (422); `unit` restricted to the fixed list; unknown `supplier_id` refused with HTTP 404. Derived flag: low stock = `current_quantity <= minimum_stock`. PUT updates descriptive fields only — never the quantity.
+
+## Table: inventory_transactions
+
+One row per stock movement — the audit trail behind every quantity change. Created in Phase 9.
+
+| Field Name       | Data Type    | Description                                                   | Primary Key | Foreign Key                              | Nullable | Example             |
+| ---------------- | ------------ | ------------------------------------------------------------- | ----------- | ---------------------------------------- | -------- | ------------------- |
+| id               | INTEGER      | Auto-increment identifier                                     | Yes         | No                                       | No       | 1                   |
+| item_id          | INTEGER      | Material that moved                                           | No          | Yes → inventory_items (ON DELETE CASCADE)| No       | 1                   |
+| transaction_type | VARCHAR(12)  | "Stock In" / "Stock Out" / "Adjustment"                       | No          | No                                       | No       | Stock Out           |
+| quantity         | FLOAT        | Amount moved (> 0) for In/Out; new counted total (≥ 0) for Adjustment | No | No                                 | No       | 8.0                 |
+| balance_after    | FLOAT        | Stock level once the movement was applied (snapshot)          | No          | No                                       | No       | 2.0                 |
+| note             | VARCHAR(200) | Free-text remark                                              | No          | No                                       | Yes      | Morning delivery    |
+| created_at       | DATETIME     | Movement timestamp (auto)                                     | No          | No                                       | No       | 2026-08-23 16:40:11 |
+
+**Constraints & rules:** In/Out require quantity > 0 while Adjustment requires ≥ 0 (schema-enforced); Stock Out uses an atomic guarded UPDATE (`WHERE current_quantity >= quantity`) so concurrent removals cannot oversell; a failed movement writes nothing, every successful one snapshots `balance_after`; deleting a material deletes its history (cascade).
+
 ## Planned Tables (not yet created)
 
 | Table                  | Purpose                                   | Phase |
 | ---------------------- | ----------------------------------------- | ----- |
-| suppliers              | Supplier master                           | 8     |
-| inventory_items        | Raw materials with stock levels           | 9     |
-| inventory_transactions | Stock add/reduce history                  | 9     |
 | purchases              | Purchase headers                          | 10    |
 | purchase_items         | Purchase line items                       | 10    |
 | employees              | Employee master                           | 11    |
@@ -122,5 +178,5 @@ One row per ordered dish line, belonging to exactly one order. Created in Phase 
 | expenses               | Operating expenses                        | 13    |
 
 ---
-*Last updated: Phase 6–7 completion (orders + order_items added).*
-*Previous: Phase 5 completion (Customer Digital Menu; no schema change).*
+*Last updated: Phase 8–9 completion (suppliers + inventory_items + inventory_transactions added).*
+*Previous: Phase 6–7 completion (orders + order_items added).*

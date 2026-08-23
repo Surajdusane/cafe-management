@@ -14,6 +14,7 @@ A final-year project documentation for a web-based Cafe Management System develo
 | 1.3     | 2026-08-23 | Phases 3–4 Menu Management implemented (categories + menu items CRUD) |
 | 1.4     | 2026-08-23 | Phase 5 Customer Digital Menu implemented (public /menu/cafe page + API + tests) |
 | 1.5     | 2026-08-23 | Phases 6–7 Orders & Billing implemented (orders CRUD + workflow, server-calculated bills, payments, printable receipt) |
+| 1.6     | 2026-08-23 | Phases 8–9 Suppliers & Inventory implemented (supplier CRUD, raw materials with units/min stock/supplier link, atomic Stock In/Out/Adjustment movements with history and low-stock warnings) |
 
 ---
 
@@ -53,14 +54,15 @@ In the present system the cafe typically works with:
 
 The proposed Cafe Management System is a local web application running on the cafe's computer. Staff manage menu, orders, billing, inventory, suppliers, employees, salaries and expenses through a browser interface backed by a FastAPI server and a single-file SQLite database.
 
-Development follows 17 phases (see Development Phases). Phases 1–7 are complete: Foundation, Cafe Settings, Categories, Menu Items, the Customer Digital Menu, Orders and Billing.
+Development follows 17 phases (see Development Phases). Phases 1–9 are complete: Foundation, Cafe Settings, Categories, Menu Items, the Customer Digital Menu, Orders, Billing, Suppliers and Inventory.
 
 ### Scope of Proposed System
 
 * Centralized management of menu, orders, billing, stock, suppliers, staff and expenses
 * Centralized cafe profile configuration (name, address, tax, currency, receipt footer)
 * Automatic bill calculation with tax and discount
-* Automatic inventory increase when purchases are recorded
+* Raw-material inventory with units, minimum levels and a full movement history (Stock In / Stock Out / Adjustment)
+* Automatic inventory increase when purchases are recorded (Phase 10)
 * Basic reports: sales, orders, inventory, purchases, salaries, expenses and estimated profit
 * A public customer-facing digital menu page
 * Single-cafe, single-computer deployment (no cloud)
@@ -69,6 +71,7 @@ Development follows 17 phases (see Development Phases). Phases 1–7 are complet
 
 * Faster, error-free billing
 * Real-time view of sales and low-stock warnings
+* Every stock movement recorded with its balance, ending notebook stock-tracking
 * Purchase records automatically update inventory
 * Salary computation with bonus/deduction history
 * Reports generated instantly from recorded data
@@ -91,8 +94,8 @@ Development follows 17 phases (see Development Phases). Phases 1–7 are complet
 | 9  | Public customer digital menu                        | Implemented       |
 | 10 | Order creation and status tracking                  | Implemented       |
 | 11 | Billing with tax/discount and printable receipt     | Implemented       |
-| 12 | Supplier CRUD                                       | Planned (Phase 8) |
-| 13 | Inventory with stock movements and low-stock alert  | Planned (Phase 9) |
+| 12 | Supplier CRUD with search and material counts       | Implemented       |
+| 13 | Inventory with stock movements and low-stock alert  | Implemented       |
 | 14 | Purchases updating inventory automatically          | Planned (Phase 10)|
 | 15 | Employee CRUD                                       | Planned (Phase 11)|
 | 16 | Salary runs (base + bonus − deduction)              | Planned (Phase 12)|
@@ -137,7 +140,7 @@ Design artefacts are maintained in the `docs/` folder:
 * `docs/DATA_DICTIONARY.md` — field-level dictionary per table
 * `docs/API_DOCUMENTATION.md` — endpoint reference
 
-### Current Architecture (Phases 2–7)
+### Current Architecture (Phases 2–9)
 
 ```text
 Browser (HTML/CSS/JS)
@@ -154,6 +157,9 @@ FastAPI application (app/main.py)
     |-- /api/orders (create/list/detail/status/delete) -> routers/orders.py -> order_service
     |-- /api/bills (list/detail/pay) -> routers/billing.py -> billing_service
     |-- /api/public/menu (GET)  -> routers/public_menu.py -> public_menu_service
+    |-- /api/suppliers (CRUD + search) -> routers/suppliers.py -> supplier_service
+    |-- /api/inventory (items CRUD, stock movements, history, summary)
+    |                            -> routers/inventory.py -> inventory_service
     `-- Error handlers -> unified JSON envelope (400/404/409/422/500)
     v
 SQLAlchemy models (app/models) -> data/cafe.db (SQLite, PRAGMA foreign_keys=ON)
@@ -167,6 +173,10 @@ Order data model: `Order 1:N OrderItem` (`order_items.order_id`, ORM cascade). E
 
 Public menu flow: the customer page `/menu/cafe` fetches `/api/public/menu`, which composes cafe branding from `cafe_settings` plus active non-empty categories and their items. The response contains only display fields — no ids, timestamps or admin flags — so nothing internal reaches the customer's browser.
 
+Supplier data model (Phase 8): `Supplier` is a standalone master table; names are unique. Deleting a supplier is always allowed and simply clears the preferred-supplier link on raw materials (`inventory_items.supplier_id` is `ON DELETE SET NULL`) — materials, stock levels and histories stay intact.
+
+Inventory data model (Phase 9): `InventoryItem 1:N InventoryTransaction` (ORM cascade). Material names are unique. `current_quantity` changes **only** through movements: *Stock In* adds units (> 0), *Stock Out* removes units (> 0, refused with HTTP 409 when insufficient), and *Adjustment* sets the level to a physically counted total (≥ 0). Stock Out uses a guarded SQL UPDATE (`WHERE current_quantity >= quantity`), so two simultaneous removals can never oversell the same stock — atomic at the database level. Every movement writes a history row snapshotting the balance afterwards. PUT updates descriptive fields only and never touches quantities. Low stock means `current_quantity <= minimum_stock` (so out-of-stock is always flagged). A non-zero opening stock at creation automatically writes the first "Opening stock" movement.
+
 ## Chapter 5 — I/O Screens
 
 Screens implemented in Phase 1 (screenshots to be captured for final submission):
@@ -179,8 +189,8 @@ Screens implemented in Phase 1 (screenshots to be captured for final submission)
 | Public digital menu   | `/menu/cafe`     | **Implemented (Phase 5)** — customer-facing, mobile-first, no admin UI |
 | Orders                | `/orders`        | **Implemented (Phase 6)** — order table with filters, new-order modal (type/table/cart/live totals), detail modal, status workflow |
 | Billing               | `/billing`       | **Implemented (Phase 7)** — collection stat cards, bills table, payment recording, printable receipt |
-| Suppliers             | `/suppliers`     | Placeholder card (Phase 8)                         |
-| Inventory             | `/inventory`     | Placeholder card (Phase 9)                         |
+| Suppliers             | `/suppliers`     | **Implemented (Phase 8)** — supplier table with search, contact details, material counts, add/edit/delete modal |
+| Inventory             | `/inventory`     | **Implemented (Phase 9)** — stat cards, materials table with stock/min/cost/supplier/low-stock badges, filters, stock movement + history modals, recent movements feed |
 | Purchases             | `/purchases`     | Placeholder card (Phase 10)                        |
 | Employees             | `/employees`     | Placeholder card (Phase 11)                        |
 | Salaries              | `/salaries`      | Placeholder card (Phase 12)                        |
@@ -203,6 +213,24 @@ The billing page (`/billing`) opens with three stat cards — Billed, Collected 
 **Payments** — "Mark paid" opens a modal with four method buttons (Cash / UPI / Card / Other); choosing one calls `POST /api/bills/{id}/pay`. Paid bills can never be double-charged (409) and cancelled orders refuse payment.
 
 **Printable receipt** — "Receipt" fetches bill detail including cafe branding (name, address, phone, currency, footer from Settings) and renders a thermal-style paper slip: header, dashed separators, line items with quantity × price, tax/discount/total block and footer message. "Print receipt" triggers the browser print dialog; print CSS hides everything except the paper and constrains it to 80 mm for receipt printers.
+
+### Suppliers Screen Behaviour (Phase 8)
+
+The suppliers page (`/suppliers`) lists every supplier alphabetically with contact person + phone, materials supplied, a live count of linked raw materials and an Active/Inactive badge. Toolbar: debounced server-side search across name, contact person, materials and phone, plus a "Show inactive" toggle.
+
+"+ Add supplier" / "Edit" open one modal form — name (required, ≤100, unique ignoring case), contact person, 10-digit mobile with pattern validation, email with format validation, address, comma-separated materials list and an Active checkbox. Duplicates are pre-checked client-side against the loaded list and enforced by the server with HTTP 409. Delete asks for confirmation and explains the behaviour: linked raw materials simply lose the supplier link while their stock and history stay intact.
+
+### Inventory Screen Behaviour (Phase 9)
+
+The inventory page (`/inventory`) opens with three stat cards — Raw materials, Low stock items and Active suppliers — computed from `GET /api/inventory/items`' summary block.
+
+**Raw materials table** shows each material with its category, current quantity in its unit, minimum stock, purchase cost per unit, preferred supplier and status badges ("Low stock"/"Out of stock" plus Active/Inactive). Toolbar filters: debounced search, category dropdown (fed from `/api/inventory/categories`), supplier dropdown and a "Low stock only" toggle.
+
+**Add/Edit material modal** — name (required, unique), free-text category with datalist suggestions (Dairy, Vegetables, Beverages…), unit select (Kg/Gram/Litre/Millilitre/Piece/Packet/Box), opening stock (create only; saved as the first "Opening stock" movement), minimum stock (≥0) that drives the warning, purchase price per unit (≥0), supplier select, notes. Editing never changes the stock level — quantities move only through movements.
+
+**Stock movement modal** ("Stock" row action) — segmented Stock In / Stock Out / Adjustment buttons switch the quantity label and rules live: In/Out demand > 0; Adjustment takes the counted new total (0 allowed). The header shows the current balance vs minimum. A failed Stock Out (insufficient stock) surfaces the server's 409 message and changes nothing.
+
+**Movement history** — per-material history via the "History" action (type, quantity, balance after, note) and a global "Recent stock movements" section listing the latest 25 movements across all materials with type filter, colour-coded ±/= amounts and refresh button.
 
 ### Customer Digital Menu Behaviour (Phase 5)
 
@@ -259,20 +287,28 @@ No reports exist yet. Planned from Phase 14: daily/weekly/monthly sales, order s
 | `app/models/category.py`          | Category model + 1:N items relationship                 |
 | `app/models/menu_item.py`         | MenuItem model (FK to categories, per-category unique)  |
 | `app/models/order.py`             | Order + OrderItem models (bill fields, snapshots, cascades) |
+| `app/models/supplier.py`          | Supplier model (unique name, inventory link)            |
+| `app/models/inventory.py`         | InventoryItem + InventoryTransaction (movements, history) |
 | `app/schemas/cafe_setting.py`     | Pydantic request/response schemas + validation          |
 | `app/schemas/category.py`         | Category create/update/read schemas                     |
 | `app/schemas/menu_item.py`        | Menu item schemas; price > 0, rounding, trims           |
 | `app/schemas/order.py`            | Order create/status/payment/read schemas; qty & discount rules |
+| `app/schemas/supplier.py`         | Supplier schemas; phone/email pattern validation        |
+| `app/schemas/inventory.py`        | Material/movement schemas; unit enum, ≥0 rules, type-conditional qty |
 | `app/services/settings_service.py`| Get-or-create singleton, update logic                   |
 | `app/services/category_service.py`| Category CRUD, duplicate check, delete guard            |
 | `app/services/menu_item_service.py`| Item CRUD, FK validation, per-category duplicate check |
 | `app/services/order_service.py`   | Order creation with server totals, status workflow, delete guard |
 | `app/services/billing_service.py` | Bill list + summary totals, payment recording           |
+| `app/services/supplier_service.py`| Supplier CRUD, duplicate check, material counts         |
+| `app/services/inventory_service.py`| Material CRUD, atomic stock movements, history, summary |
 | `app/routers/settings.py`         | GET/PUT /api/settings                                   |
 | `app/routers/categories.py`       | CRUD /api/categories (+search, include_inactive)        |
 | `app/routers/menu.py`             | CRUD /api/menu/items (+filters)                         |
 | `app/routers/orders.py`           | Orders API: list/create/detail/status/delete            |
 | `app/routers/billing.py`          | Bills API: list/detail/pay                              |
+| `app/routers/suppliers.py`        | Suppliers API: CRUD + search                            |
+| `app/routers/inventory.py`        | Inventory API: items CRUD, /stock movements, history    |
 | `static/js/api.js`                | Fetch wrapper with ApiError                             |
 | `static/js/common.js`             | Shell injection, navigation, toasts, confirm dialogs    |
 | `static/js/validation.js`         | Reusable form validators                                |
@@ -289,7 +325,10 @@ No reports exist yet. Planned from Phase 14: daily/weekly/monthly sales, order s
 | `static/js/orders.js`             | New-order modal, cart with live totals, status workflow |
 | `static/js/billing.js`            | Bills table, stat cards, payment modal, receipt render  |
 | `static/css/orders.css`           | Orders & Billing styles incl. printable receipt CSS     |
-| `tests/`                          | pytest suite (startup, database, settings, categories, menu items, public menu, orders, billing) |
+| `static/js/suppliers.js`          | Suppliers table, search, add/edit modal                 |
+| `static/js/inventory.js`          | Materials table + filters, stock movement & history modals |
+| `static/css/inventory.css`        | Inventory stat cards, movement badges, segmented control|
+| `tests/`                          | pytest suite (startup, database, settings, categories, menu items, public menu, orders, billing, suppliers, inventory) |
 
 ### Error Envelope
 
@@ -297,7 +336,7 @@ All API errors return `{ "success": false, "message": ..., "errors": [...] }`; v
 
 ## Chapter 8 — Software System Testing
 
-Automated tests (`uv run pytest`) — 158 passed on 2026-08-23 (startup 19, database 5, settings 15, categories 22, menu items 32, public menu 9, orders 37, billing 19):
+Automated tests (`uv run pytest`) — 227 passed on 2026-08-23 (startup 19, database 5, settings 15, categories 22, menu items 32, public menu 9, orders 37, billing 19, suppliers 30, inventory 59):
 
 | Test Case                          | Input                    | Expected Result                     | Status |
 | ---------------------------------- | ------------------------ | ----------------------------------- | ------ |
@@ -307,8 +346,8 @@ Automated tests (`uv run pytest`) — 158 passed on 2026-08-23 (startup 19, data
 | Static assets served               | GET css/js/favicon       | 200 correct content type            | Pass   |
 | Database file created at startup   | lifespan init_db()       | data/cafe.db exists                 | Pass   |
 | Session executes query             | SELECT 1 via session     | Returns 1                           | Pass   |
-| Implemented tables registered      | Base.metadata            | cafe_settings, categories, menu_items, orders, order_items present | Pass |
-| No future domain tables            | Base.metadata            | inventory/purchases/employees/etc. absent | Pass |
+| Implemented tables registered      | Base.metadata            | cafe_settings, categories, menu_items, orders, order_items, suppliers, inventory_items, inventory_transactions present | Pass |
+| No future domain tables            | Base.metadata            | purchases/employees/salaries/expenses absent | Pass |
 
 ### Settings Module Test Cases (Phase 2)
 
@@ -457,6 +496,52 @@ Live smoke test (uvicorn against a temporary SQLite file): `/orders` and `/billi
 
 UI testing (manual): new-order modal shows/hides the table field with the type toggle, merges duplicate dishes into one line, live totals track cart and discount changes; billing stat cards update with filters; the receipt modal renders the paper slip and print CSS isolates it during printing.
 
+### Suppliers Module Test Cases (Phase 8)
+
+Tests use a unique per-run name tag, so reruns never collide with leftover data.
+
+| Test Case                          | Input                                    | Expected Result                              | Status |
+| ---------------------------------- | ---------------------------------------- | -------------------------------------------- | ------ |
+| Create with valid data             | All supplier fields                      | 201, row echoed, inventory_item_count 0      | Pass   |
+| Whitespace trimmed, empties null   | Padded/blank optional fields             | Trimmed; blanks stored NULL                  | Pass   |
+| Email lowercased                   | `BIG123@Vendor.IN`                       | Stored lowercase                             | Pass   |
+| Get single / list sorted           | GET by id, GET list                      | 200; alphabetical with material counts       | Pass   |
+| Full update (PUT)                  | New values incl. is_active false         | 200 updated values returned                  | Pass   |
+| Search by name/contact/materials   | Partial terms                            | Matching suppliers returned                  | Pass   |
+| Hide inactive filter               | include_inactive=false                   | Inactive rows hidden                         | Pass   |
+| Invalid payloads (parametrised)    | Blank/101-char name, bad phone/email, bool flag, overlong fields | 422 with field errors each | Pass |
+| Duplicate name exact/case          | Same and different case                  | 409 both times                               | Pass   |
+| Update keeps own name              | PUT unchanged name to self               | 200 allowed                                  | Pass   |
+| Delete then get                    | DELETE then GET                          | 200 then 404                                 | Pass   |
+| Missing id get/update/delete       | id 999999                                | 404 envelope each time                       | Pass   |
+
+### Inventory Module Test Cases (Phase 9)
+
+| Test Case                          | Input                                    | Expected Result                              | Status |
+| ---------------------------------- | ---------------------------------------- | -------------------------------------------- | ------ |
+| Create with opening stock          | Milk 12.5 L                              | 201; qty 12.5 + first "Opening stock" movement | Pass |
+| Zero opening stock                 | initial_quantity 0                       | 201; no history rows yet                     | Pass   |
+| Rounding                           | qty/min 3 dp, price 2 dp                 | 1.0004→1.0, 250.0004→250.0, 1.999→2.0        | Pass   |
+| Duplicate name case-insensitive    | "Tea Powder" / "TEA POWDER"              | 409 both                                     | Pass   |
+| PUT never touches stock            | Full update of a stocked item            | Quantity unchanged                           | Pass   |
+| Stock In adds units                | +2.5 on 5 L                              | 7.5; history row balance_after 7.5           | Pass   |
+| Stock Out removes units            | −4 from 10                               | 6; history row written                       | Pass   |
+| Insufficient stock atomic          | Remove 5 from 3                          | 409 "Not enough stock"; qty unchanged; no history row in DB | Pass |
+| Adjustment sets absolute level     | Counted total 14 then 0                  | Level set exactly; zero allowed              | Pass   |
+| Low-stock thresholds               | qty above/at/below minimum               | False / True / True flags                    | Pass   |
+| Filters search/category/supplier/low-stock-only | Query params                | Only matching rows; summary counts correct   | Pass   |
+| History endpoint newest first      | item_id + type filters                   | Newest first; filter respected               | Pass   |
+| Distinct categories endpoint       | Created materials                        | Sorted unique category list                  | Pass   |
+| Invalid creates (parametrised)     | Blank name/category, unknown unit, negative qty/min/price/supplier id, text qty, boolean number, overlong notes | 422 each | Pass |
+| Invalid movements (parametrised)   | Bad/empty/missing type, zero/negative In-Out, negative Adjustment, boolean qty, 201-char note | 422 each | Pass |
+| Unknown supplier on create/update  | supplier_id 999999                       | 404 "Create it first"                        | Pass   |
+| Unknown item on all routes         | id 999999 get/put/delete/stock           | 404 envelope each                            | Pass   |
+| Delete cascades history            | DELETE item after movements              | Transaction rows gone (direct DB check)      | Pass   |
+| Supplier delete clears link only   | DELETE supplier of a stocked material    | Item keeps stock/history; supplier NULL      | Pass   |
+| Persisted in SQLite                | Direct session query after API create    | Exact values found                           | Pass   |
+
+Live smoke test (uvicorn on a free port against a temporary SQLite file): `/suppliers` and `/inventory` pages served their markup with their page scripts wired; a supplier and a material (Milk, 10 L opening stock) were created through the API; an 8 L Stock Out returned "New balance: 2.0 Litre", flipping the low-stock flag (minimum 3).
+
 ## Chapter 9 — Implementation
 
 ### Installation
@@ -474,7 +559,9 @@ Current UI requires no training beyond navigation; module-specific training will
 
 ### Limitations
 
-* Stock/supplier/employee modules not yet implemented (see roadmap)
+* Purchases/employee/salary/expense modules not yet implemented (see roadmap)
+* Stock usage is recorded manually via Stock Out; recipes do not deduct ingredients automatically
+* Deleting a raw material also deletes its movement history (by design, keeps the demo database clean)
 * Orders cannot be edited after placement — cancel and re-take instead (keeps bills audit-proof)
 * No refunds in-system; refunds for paid orders are handled manually outside the software
 * Single computer / single cafe deployment
@@ -513,8 +600,8 @@ QR-code menu access, online ordering/payments, multi-branch support, cloud backu
 | 5     | Customer Digital Menu           | Implemented |
 | 6     | Orders                          | Implemented |
 | 7     | Billing                         | Implemented |
-| 8     | Suppliers                       | Planned     |
-| 9     | Inventory                       | Planned     |
+| 8     | Suppliers                       | Implemented |
+| 9     | Inventory                       | Implemented |
 | 10    | Purchases                       | Planned     |
 | 11    | Employees                       | Planned     |
 | 12    | Salaries                        | Planned     |

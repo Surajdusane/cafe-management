@@ -1,0 +1,77 @@
+/* Inventory page — stat cards, stock badges, movement rows, segmented control */
+
+.stat-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-card .label { font-size: 12.5px; color: var(--muted); }
+.stat-card .value { font-family: "Fraunces", serif; font-size: 26px; line-height: 1.1; }
+.stat-card.is-outstanding .value { color: var(--clay); }
+.stat-card.is-collected .value { color: var(--sage); }
+
+.inventory-toolbar select.input { width: auto; min-width: 150px; }
+.toolbar-check { margin-left: auto; white-space: nowrap; }
+
+.qty-cell { font-variant-numeric: tabular-nums; font-weight: 600; }
+.qty-unit { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 3px; }
+
+.badge-low { background: var(--clay-tint); color: var(--clay); }
+.badge-out { background: #f6d7cd; color: #8c3b22; }
+
+.mv-in   { color: var(--sage); font-weight: 600; }
+.mv-out  { color: var(--clay); font-weight: 600; }
+.mv-adj  { color: #8a6516; font-weight: 600; }
+
+.stock-current {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+.stock-current strong { color: var(--ink, #333); }
+
+.segmented {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.segmented .seg {
+  flex: 1;
+  padding: 9px 6px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--paper);
+  border: none;
+  cursor: pointer;
+  color: var(--ink-soft, #555);
+}
+
+.segmented .seg + .seg { border-left: 1px solid var(--line); }
+.segmented .seg.is-selected { background: var(--caramel); color: #fff; }
+
+.history-table-wrap {
+  max-height: 46vh;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+  .stat-cards { grid-template-columns: 1fr; }
+  .inventory-toolbar .input[type="search"] { flex: 1 1 100%; }
+}

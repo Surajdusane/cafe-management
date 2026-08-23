@@ -2,7 +2,7 @@
 
 A simple web-based Cafe Management System built for a final-year BCA/BBA Computer Application academic project. It manages the daily operations of a small or medium-sized cafe: menu, orders, billing, inventory, suppliers, purchases, employees, salaries, expenses and reports.
 
-## Current Status — Phases 1–7 complete (Foundation · Settings · Menu · Customer Digital Menu · Orders · Billing)
+## Current Status — Phases 1–9 complete (Foundation · Settings · Menu · Customer Digital Menu · Orders · Billing · Suppliers · Inventory)
 
 Implemented so far:
 
@@ -15,11 +15,13 @@ Implemented so far:
 - Public customer digital menu at `/menu/cafe` (mobile-friendly, shareable)
 - Orders: dine-in/takeaway with table numbers, item cart, live totals and a status workflow (Pending → Preparing → Ready → Completed / Cancelled)
 - Billing: server-calculated bills (subtotal − discount + tax), payment recording (Cash/UPI/Card/Other) and a printable receipt
+- Suppliers: CRUD with search, contact validation (10-digit phone, email format) and live raw-material counts
+- Inventory: raw materials with units, minimum stock, purchase price and supplier link; atomic Stock In / Stock Out / Adjustment movements with full history and low-stock warnings
 - API error handling with a consistent JSON error envelope
 - Reusable frontend utilities: `api.js` (fetch wrapper), `common.js` (toast notifications, confirm dialogs), `validation.js` (form validators)
-- Automated tests (158 passing) for startup, database, settings, categories, menu items, public menu, orders and billing
+- Automated tests (227 passing) for startup, database, settings, categories, menu items, public menu, orders, billing, suppliers and inventory
 
-Not yet implemented (planned phases): suppliers, inventory, purchases, employees, salaries, expenses, reports, dashboard live data.
+Not yet implemented (planned phases): purchases, employees, salaries, expenses, reports, dashboard live data.
 
 ## Technology Stack
 
@@ -98,18 +100,18 @@ Environment overrides: `CAFE_HOST`, `CAFE_PORT`.
 | Route            | Screen          | Status                        |
 | ---------------- | --------------- | ----------------------------- |
 | `/`              | Dashboard       | Shell + placeholders (Phase 1)|
-| `/menu`          | Menu Management | Placeholder → Phase 3–4       |
-| `/customer-menu` | Customer Menu   | Placeholder → Phase 5         |
-| `/orders`        | Orders          | Placeholder → Phase 6         |
-| `/billing`       | Billing         | Placeholder → Phase 7         |
-| `/suppliers`     | Suppliers       | Placeholder → Phase 8         |
-| `/inventory`     | Inventory       | Placeholder → Phase 9         |
+| `/menu`          | Menu Management | Implemented (Phases 3–4)      |
+| `/customer-menu` | Customer Menu   | Implemented (Phase 5)         |
+| `/orders`        | Orders          | Implemented (Phase 6)         |
+| `/billing`       | Billing         | Implemented (Phase 7)         |
+| `/suppliers`     | Suppliers       | Implemented (Phase 8)         |
+| `/inventory`     | Inventory       | Implemented (Phase 9)         |
 | `/purchases`     | Purchases       | Placeholder → Phase 10        |
 | `/employees`     | Employees       | Placeholder → Phase 11        |
 | `/salaries`      | Salaries        | Placeholder → Phase 12        |
 | `/expenses`      | Expenses        | Placeholder → Phase 13        |
 | `/reports`       | Reports         | Placeholder → Phase 14        |
-| `/settings`      | Settings        | Placeholder → Phase 2         |
+| `/settings`      | Settings        | Implemented (Phase 2)         |
 
 ## Documentation
 
