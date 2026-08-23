@@ -114,3 +114,15 @@ def make_page_handler(filename: str):
 
 for route, template in PAGES.items():
     app.get(route, include_in_schema=False)(make_page_handler(template))
+
+
+def run_server() -> None:
+    import os
+
+    import uvicorn
+
+    uvicorn.run(
+        "app.main:app",
+        host=os.getenv("CAFE_HOST", "127.0.0.1"),
+        port=int(os.getenv("CAFE_PORT", "8000")),
+    )

@@ -21,6 +21,3 @@ data/*.db-journal
 Thumbs.db
 .vscode/
 .idea/
-
-# uv
-uv.lock

@@ -1,14 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "cafe-managment"
+name = "cafe-management-system"
 version = "0.1.0"
-description = "Add your description here"
+description = "Cafe Management System - BCA/BBA Computer Application final year project"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi==0.115.12",
-    "httpx==0.28.1",
-    "pydantic==2.11.3",
-    "pytest==8.3.5",
-    "sqlalchemy==2.0.40",
-    "uvicorn[standard]==0.34.2",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "sqlalchemy>=2.0",
+    "pydantic>=2.11",
 ]
+
+[project.scripts]
+cafe-server = "app.main:run_server"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "httpx>=0.28",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]

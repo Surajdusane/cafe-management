@@ -37,13 +37,14 @@ Not yet implemented (planned phases): cafe settings, menu management, customer d
 
 ## Setup and Run
 
-```bash
-# 1. Create the virtual environment and install dependencies
-uv venv
-uv pip install -r requirements.txt
+The project is a proper [uv](https://docs.astral.sh/uv/) project (`pyproject.toml` + `uv.lock`).
 
-# 2. Start the development server
-uv run uvicorn app.main:app --reload
+```bash
+# 1. Install everything (creates .venv, installs deps + the app itself)
+uv sync
+
+# 2. Start the server
+uv run cafe-server
 ```
 
 Open http://127.0.0.1:8000 in your browser.
@@ -51,6 +52,9 @@ Open http://127.0.0.1:8000 in your browser.
 Other useful commands:
 
 ```bash
+# Development server with auto-reload
+uv run uvicorn app.main:app --reload
+
 # Run the automated test suite
 uv run pytest -v
 
@@ -58,7 +62,9 @@ uv run pytest -v
 http://127.0.0.1:8000/docs
 ```
 
-The SQLite database file is created automatically at `data/cafe.db` on first startup.
+Environment overrides: `CAFE_HOST`, `CAFE_PORT`.
+
+> `requirements.txt` is kept pinned for non-uv users (`pip install -r requirements.txt`). The SQLite database file is created automatically at `data/cafe.db` on first startup.
 
 ## Project Structure
 

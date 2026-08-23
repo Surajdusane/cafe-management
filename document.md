@@ -9,6 +9,7 @@ A final-year project documentation for a web-based Cafe Management System develo
 | Version | Date       | Change                                              |
 | ------- | ---------- | --------------------------------------------------- |
 | 1.0     | 2026-08-23 | Initial documentation · Phase 1 Foundation complete |
+| 1.1     | 2026-08-23 | Proper uv project setup (pyproject.toml, uv.lock, cafe-server script) |
 
 ---
 
@@ -217,12 +218,11 @@ Manual smoke test (uvicorn live): all 13 pages returned 200; health JSON verifie
 ### Installation
 
 ```bash
-uv venv
-uv pip install -r requirements.txt
-uv run uvicorn app.main:app --reload
+uv sync
+uv run cafe-server
 ```
 
-Open http://127.0.0.1:8000. The database creates itself on first run.
+Open http://127.0.0.1:8000. The database creates itself on first run. For auto-reload during development use `uv run uvicorn app.main:app --reload`. Non-uv users can `pip install -r requirements.txt`.
 
 ### User Training
 
