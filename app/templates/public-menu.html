@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1c1310" />
+  <title>Menu</title>
+  <meta property="og:title" content="Our Menu" />
+  <meta property="og:description" content="Browse our cafe menu" />
+  <link rel="icon" href="/static/images/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/public-menu.css" />
+</head>
+<body class="pm">
+  <div class="pm-wrap" id="pmWrap">
+    <header class="pm-hero">
+      <div class="pm-brand">
+        <img id="pmLogo" class="pm-logo" src="" alt="" hidden />
+        <span id="pmMonogram" class="pm-monogram" hidden></span>
+        <div class="pm-brand-text">
+          <h1 id="pmCafeName" class="pm-cafe-name"><span class="skeleton-line pm-sk-name"></span></h1>
+          <p id="pmCafeMeta" class="pm-cafe-meta"></p>
+        </div>
+      </div>
+
+      <label class="pm-search" for="pmSearchInput">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="pmSearchInput" type="search" placeholder="Search the menu…" autocomplete="off" aria-label="Search the menu" />
+      </label>
+    </header>
+
+    <nav class="pm-chipsbar" aria-label="Menu categories">
+      <div class="pm-chips" id="pmChips"></div>
+    </nav>
+
+    <main class="pm-main" id="pmMain" aria-live="polite">
+      <div class="pm-loading" id="pmLoading">
+        <div class="pm-section-sk">
+          <div class="skeleton-line" style="width:140px;height:16px"></div>
+          <div class="skeleton-line" style="width:100%;height:72px;margin-top:18px"></div>
+          <div class="skeleton-line" style="width:100%;height:72px"></div>
+          <div class="skeleton-line" style="width:88%;height:72px"></div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="pm-foot" id="pmFoot" hidden>
+      <p class="pm-foot-name" id="pmFootName"></p>
+      <p class="pm-foot-meta" id="pmFootMeta"></p>
+    </footer>
+  </div>
+
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/public-menu.js"></script>
+</body>
+</html>

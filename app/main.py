@@ -13,6 +13,7 @@ from app.core import config
 from app.core.database import Base, engine, get_db, init_db
 from app.routers.categories import router as categories_router
 from app.routers.menu import router as menu_router
+from app.routers.public_menu import router as public_menu_router
 from app.routers.settings import router as settings_router
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -49,6 +50,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.include_router(settings_router)
 app.include_router(categories_router)
 app.include_router(menu_router)
+app.include_router(public_menu_router)
 
 
 def error_payload(message: str, errors: list | None = None) -> dict:
@@ -121,6 +123,13 @@ def make_page_handler(filename: str):
 
 for route, template in PAGES.items():
     app.get(route, include_in_schema=False)(make_page_handler(template))
+
+
+@app.get("/menu/cafe", include_in_schema=False)
+def public_menu_page():
+    """Shareable customer-facing digital menu. Kept out of PAGES on purpose:
+    it is a public page, not part of the admin navigation."""
+    return make_page_handler("public-menu.html")()
 
 
 def run_server() -> None:

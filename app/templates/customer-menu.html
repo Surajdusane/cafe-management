@@ -17,19 +17,47 @@
       <section class="page-head">
         <div>
           <h2>Customer Menu</h2>
-          <p class="lede">A shareable public menu your customers can open on their phones.</p>
+          <p class="lede">Share a public, mobile-friendly menu with your customers. It updates automatically whenever you change the menu.</p>
         </div>
-        <span class="badge badge-planned">Planned · Phase 5</span>
+        <span class="badge badge-ok">Live · Phase 5</span>
       </section>
-      <section class="card placeholder-card">
-        <div class="ph-icon" data-icon="globe"></div>
-        <h3>Coming soon</h3>
-        <p>In Phase 5 this becomes a mobile-friendly public page at /menu/cafe, generated from your menu. No admin tools are exposed to customers.</p>
-        <a class="btn btn-ghost" href="/">Back to dashboard</a>
+
+      <section class="card form-card" style="max-width:760px">
+        <div class="card-head"><h3>Shareable link</h3></div>
+        <div class="card-body">
+          <div class="field">
+            <label for="publicUrl">Public menu address</label>
+            <p class="hint">Anyone with this link can view your live menu on a phone. No login needed.</p>
+            <div class="share-row">
+              <input id="publicUrl" class="input" type="text" readonly aria-label="Public menu address" />
+              <button type="button" id="copyLinkBtn" class="btn btn-primary">
+                <span class="btn-label">Copy link</span>
+                <span class="spinner"></span>
+              </button>
+              <a id="openLinkBtn" class="btn btn-ghost" href="/menu/cafe" target="_blank" rel="noopener">Open</a>
+            </div>
+          </div>
+          <p class="share-note" id="shareNote">Phones on the same Wi-Fi can open this page using this computer's IP address instead of <code>127.0.0.1</code>.</p>
+        </div>
+      </section>
+
+      <section class="card form-card" style="max-width:760px;margin-top:20px">
+        <div class="card-head"><h3>What customers see</h3><span class="badge" id="statTotalBadge">…</span></div>
+        <div class="card-body">
+          <dl class="stat-grid" id="statGrid">
+            <div class="skeleton-line" style="width:100%;height:58px"></div>
+          </dl>
+          <ul class="privacy-list">
+            <li>Only <strong>active categories</strong> with at least one item are shown.</li>
+            <li>Sold-out items stay visible but are clearly marked, so customers know the full menu.</li>
+            <li>No prices editing, no admin sidebar, no internal database details ever reach this page.</li>
+          </ul>
+        </div>
       </section>
     </div>
   </main>
   <script src="/static/js/api.js"></script>
   <script src="/static/js/common.js"></script>
+  <script src="/static/js/customer-menu.js"></script>
 </body>
 </html>
