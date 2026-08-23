@@ -11,8 +11,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core import config
 from app.core.database import Base, engine, get_db, init_db
+from app.routers.billing import router as billing_router
 from app.routers.categories import router as categories_router
 from app.routers.menu import router as menu_router
+from app.routers.orders import router as orders_router
 from app.routers.public_menu import router as public_menu_router
 from app.routers.settings import router as settings_router
 
@@ -50,6 +52,8 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.include_router(settings_router)
 app.include_router(categories_router)
 app.include_router(menu_router)
+app.include_router(orders_router)
+app.include_router(billing_router)
 app.include_router(public_menu_router)
 
 

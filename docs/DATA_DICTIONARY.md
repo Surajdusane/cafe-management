@@ -2,15 +2,17 @@
 
 This document lists every table that exists in the SQLite database (`data/cafe.db`), with field-level detail. It is updated after each phase.
 
-## Current Status (Phase 5 — Customer Digital Menu)
+## Current Status (Phase 7 — Billing)
 
-**Domain tables created so far: 3.** Phase 5 added no new tables — the public menu reads `cafe_settings`, `categories` and `menu_items` read-only and exposes only display fields (no ids or timestamps).
+**Domain tables created so far: 5.** Phase 6–7 added `orders` (order header + bill + payment state) and `order_items` (snapshotted order lines).
 
 | Table          | Purpose                                  | Phase |
 | -------------- | ---------------------------------------- | ----- |
 | cafe_settings  | Cafe profile, tax %, currency, receipt   | 2     |
 | categories     | Menu categories                          | 3     |
 | menu_items     | Menu items with price, image, flags      | 4     |
+| orders         | Order headers with bill and payment      | 6–7   |
+| order_items    | Order line items with price snapshots    | 6     |
 
 ## Table: cafe_settings
 
@@ -66,12 +68,50 @@ Dishes/drinks sold by the cafe. Created in Phase 4.
 
 **Constraints & rules:** FK `category_id → categories.id` enforced by SQLite (`PRAGMA foreign_keys=ON`); UNIQUE on `(category_id, name)` (`uq_menu_items_category_name`) plus a case-insensitive API check returning HTTP 409; `price > 0`; names/descriptions are trimmed and empty optional values stored as NULL.
 
+## Table: orders
+
+One row per customer order. The bill lives here too: the order number doubles as the bill number and all money values are calculated once by the server when the order is placed. Created in Phase 6, payment fields completed in Phase 7.
+
+| Field Name      | Data Type    | Description                                              | Primary Key | Foreign Key | Nullable | Example            |
+| --------------- | ------------ | -------------------------------------------------------- | ----------- | ----------- | -------- | ------------------ |
+| id              | INTEGER      | Auto-increment identifier                                | Yes         | No          | No       | 1                  |
+| order_number    | VARCHAR(20)  | Human-friendly number `ORD-xxxx`, derived from id        | No          | No          | No       | ORD-0001           |
+| order_type      | VARCHAR(10)  | "Dine-in" or "Takeaway"                                  | No          | No          | No       | Dine-in            |
+| table_number    | INTEGER      | Table 1–999; always NULL for takeaways                   | No          | No          | Yes      | 4                  |
+| status          | VARCHAR(12)  | Pending / Preparing / Ready / Completed / Cancelled      | No          | No          | No       | Preparing          |
+| subtotal        | FLOAT        | Sum of all line totals (2 dp)                            | No          | No          | No       | 250.0              |
+| discount_amount | FLOAT        | Flat rupee discount; ≥ 0 and ≤ subtotal                  | No          | No          | No       | 10.0               |
+| tax_percent     | FLOAT        | Tax rate snapshot taken from cafe_settings at order time | No          | No          | No       | 5.0                |
+| tax_amount      | FLOAT        | (subtotal − discount) × tax_percent / 100                | No          | No          | No       | 12.0               |
+| total           | FLOAT        | subtotal − discount + tax — the grand total              | No          | No          | No       | 252.0              |
+| payment_method  | VARCHAR(10)  | Cash / UPI / Card / Other; NULL until paid               | No          | No          | Yes      | UPI                |
+| payment_status  | VARCHAR(10)  | "Unpaid" or "Paid"; set by the billing API only          | No          | No          | No       | Paid               |
+| paid_at         | DATETIME     | When the payment was recorded                            | No          | No          | Yes      | 2026-08-23 13:02:11|
+| created_at      | DATETIME     | Order placement timestamp (auto)                         | No          | No          | No       | 2026-08-23 13:00:00|
+| updated_at      | DATETIME     | Last change timestamp (auto)                             | No          | No          | Yes      | 2026-08-23 13:02:11|
+
+**Constraints & rules:** UNIQUE on `order_number`; dine-in requires a table number while takeaways force it to NULL; quantity/discount rules live in the Pydantic schema; cancelled orders become immutable; only cancelled orders may be deleted; paid orders can never be cancelled.
+
+## Table: order_items
+
+One row per ordered dish line, belonging to exactly one order. Created in Phase 6.
+
+| Field Name   | Data Type    | Description                                          | Primary Key | Foreign Key                    | Nullable | Example          |
+| ------------ | ------------ | ---------------------------------------------------- | ----------- | ------------------------------ | -------- | ---------------- |
+| id           | INTEGER      | Auto-increment identifier                            | Yes         | No                             | No       | 1                |
+| order_id     | INTEGER      | Owning order                                         | No          | Yes → orders                   | No       | 1                |
+| menu_item_id | INTEGER      | Source dish; SET NULL if the dish is deleted later   | No          | Yes → menu_items (ON DELETE SET NULL) | Yes | 3           |
+| item_name    | VARCHAR(120) | Dish name snapshot at order time                     | No          | No                             | No       | Cappuccino       |
+| unit_price   | FLOAT        | Price snapshot at order time                         | No          | No                             | No       | 120.0            |
+| quantity     | INTEGER      | Units ordered; integer 1–999                         | No          | No                             | No       | 2                |
+| line_total   | FLOAT        | quantity × unit_price (2 dp)                         | No          | No                             | No       | 240.0            |
+
+**Constraints & rules:** deleting an order removes its lines (ORM cascade `all, delete-orphan`); snapshots guarantee historical bills never change when the menu changes; the API rejects the same dish twice on one order — raise its quantity instead.
+
 ## Planned Tables (not yet created)
 
 | Table                  | Purpose                                   | Phase |
 | ---------------------- | ----------------------------------------- | ----- |
-| orders                 | Order headers                             | 6     |
-| order_items            | Order line items                          | 6     |
 | suppliers              | Supplier master                           | 8     |
 | inventory_items        | Raw materials with stock levels           | 9     |
 | inventory_transactions | Stock add/reduce history                  | 9     |
@@ -82,4 +122,5 @@ Dishes/drinks sold by the cafe. Created in Phase 4.
 | expenses               | Operating expenses                        | 13    |
 
 ---
-*Last updated: Phase 5 completion (Customer Digital Menu; no schema change).*
+*Last updated: Phase 6–7 completion (orders + order_items added).*
+*Previous: Phase 5 completion (Customer Digital Menu; no schema change).*

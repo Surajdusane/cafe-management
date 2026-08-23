@@ -2,7 +2,7 @@
 
 A simple web-based Cafe Management System built for a final-year BCA/BBA Computer Application academic project. It manages the daily operations of a small or medium-sized cafe: menu, orders, billing, inventory, suppliers, purchases, employees, salaries, expenses and reports.
 
-## Current Status — Phase 1: Project Foundation (complete)
+## Current Status — Phases 1–7 complete (Foundation · Settings · Menu · Customer Digital Menu · Orders · Billing)
 
 Implemented so far:
 
@@ -10,13 +10,16 @@ Implemented so far:
 - Database initialization on application startup (`data/cafe.db`)
 - Static file serving (CSS / JS / images)
 - Admin shell layout: sidebar navigation, top bar, responsive design
-- Dashboard placeholder with honest empty states
-- Placeholder screens for all 12 upcoming modules
+- Cafe settings (name, address, contact, tax %, currency, receipt footer)
+- Menu categories and menu items CRUD with images and availability
+- Public customer digital menu at `/menu/cafe` (mobile-friendly, shareable)
+- Orders: dine-in/takeaway with table numbers, item cart, live totals and a status workflow (Pending → Preparing → Ready → Completed / Cancelled)
+- Billing: server-calculated bills (subtotal − discount + tax), payment recording (Cash/UPI/Card/Other) and a printable receipt
 - API error handling with a consistent JSON error envelope
 - Reusable frontend utilities: `api.js` (fetch wrapper), `common.js` (toast notifications, confirm dialogs), `validation.js` (form validators)
-- Automated tests for startup, pages, health endpoint and database initialization
+- Automated tests (158 passing) for startup, database, settings, categories, menu items, public menu, orders and billing
 
-Not yet implemented (planned phases): cafe settings, menu management, customer digital menu, orders, billing, suppliers, inventory, purchases, employees, salaries, expenses, reports, dashboard live data.
+Not yet implemented (planned phases): suppliers, inventory, purchases, employees, salaries, expenses, reports, dashboard live data.
 
 ## Technology Stack
 

@@ -13,6 +13,7 @@ A final-year project documentation for a web-based Cafe Management System develo
 | 1.2     | 2026-08-23 | Phase 2 Cafe Settings implemented (API + UI + tests) |
 | 1.3     | 2026-08-23 | Phases 3–4 Menu Management implemented (categories + menu items CRUD) |
 | 1.4     | 2026-08-23 | Phase 5 Customer Digital Menu implemented (public /menu/cafe page + API + tests) |
+| 1.5     | 2026-08-23 | Phases 6–7 Orders & Billing implemented (orders CRUD + workflow, server-calculated bills, payments, printable receipt) |
 
 ---
 
@@ -52,7 +53,7 @@ In the present system the cafe typically works with:
 
 The proposed Cafe Management System is a local web application running on the cafe's computer. Staff manage menu, orders, billing, inventory, suppliers, employees, salaries and expenses through a browser interface backed by a FastAPI server and a single-file SQLite database.
 
-Development follows 17 phases (see Development Phases). Phases 1–5 are complete: Foundation, Cafe Settings, Categories, Menu Items and the Customer Digital Menu.
+Development follows 17 phases (see Development Phases). Phases 1–7 are complete: Foundation, Cafe Settings, Categories, Menu Items, the Customer Digital Menu, Orders and Billing.
 
 ### Scope of Proposed System
 
@@ -88,8 +89,8 @@ Development follows 17 phases (see Development Phases). Phases 1–5 are complet
 | 7  | Category CRUD                                       | Implemented       |
 | 8  | Menu item CRUD with images and availability         | Implemented       |
 | 9  | Public customer digital menu                        | Implemented       |
-| 10 | Order creation and status tracking                  | Planned (Phase 6) |
-| 11 | Billing with tax/discount and printable receipt     | Planned (Phase 7) |
+| 10 | Order creation and status tracking                  | Implemented       |
+| 11 | Billing with tax/discount and printable receipt     | Implemented       |
 | 12 | Supplier CRUD                                       | Planned (Phase 8) |
 | 13 | Inventory with stock movements and low-stock alert  | Planned (Phase 9) |
 | 14 | Purchases updating inventory automatically          | Planned (Phase 10)|
@@ -136,7 +137,7 @@ Design artefacts are maintained in the `docs/` folder:
 * `docs/DATA_DICTIONARY.md` — field-level dictionary per table
 * `docs/API_DOCUMENTATION.md` — endpoint reference
 
-### Current Architecture (Phases 2–5)
+### Current Architecture (Phases 2–7)
 
 ```text
 Browser (HTML/CSS/JS)
@@ -150,15 +151,19 @@ FastAPI application (app/main.py)
     |-- /api/settings (GET/PUT) -> routers/settings.py -> settings_service
     |-- /api/categories (CRUD)  -> routers/categories.py -> category_service
     |-- /api/menu/items (CRUD)  -> routers/menu.py -> menu_item_service
+    |-- /api/orders (create/list/detail/status/delete) -> routers/orders.py -> order_service
+    |-- /api/bills (list/detail/pay) -> routers/billing.py -> billing_service
     |-- /api/public/menu (GET)  -> routers/public_menu.py -> public_menu_service
-    `-- Error handlers -> unified JSON envelope (404/409/422/500)
+    `-- Error handlers -> unified JSON envelope (400/404/409/422/500)
     v
 SQLAlchemy models (app/models) -> data/cafe.db (SQLite, PRAGMA foreign_keys=ON)
 ```
 
-The `cafe_settings` table is a singleton (`id = 1`) created automatically on first read. Billing will read `tax_percent`, `currency` and `receipt_footer` from it from Phase 7 onwards.
+The `cafe_settings` table is a singleton (`id = 1`) created automatically on first read. Billing reads `tax_percent`, `currency` and `receipt_footer` from it: the tax rate is snapshotted onto every order at creation time so later settings changes never rewrite historical bills.
 
 Menu data model: `Category 1:N MenuItem` (`menu_items.category_id`). Category names are unique; item names are unique **within** their category. Deleting a non-empty category is refused with HTTP 409. SQLite foreign-key enforcement is switched on for every connection, so referential integrity is guaranteed at the database level as well.
+
+Order data model: `Order 1:N OrderItem` (`order_items.order_id`, ORM cascade). Each line snapshots the dish name and unit price (`order_items.menu_item_id` is `ON DELETE SET NULL`), so bills survive menu edits and deletions. The order number (`ORD-0001`, derived from the primary key) doubles as the bill number. Money formula — calculated exclusively server-side in `compute_totals()`: `taxable = subtotal − discount`; `tax = taxable × tax_percent/100`; `total = taxable + tax`. Orders are immutable after placement except status and payment; a wrong order is cancelled (and optionally deleted) and re-taken.
 
 Public menu flow: the customer page `/menu/cafe` fetches `/api/public/menu`, which composes cafe branding from `cafe_settings` plus active non-empty categories and their items. The response contains only display fields — no ids, timestamps or admin flags — so nothing internal reaches the customer's browser.
 
@@ -172,8 +177,8 @@ Screens implemented in Phase 1 (screenshots to be captured for final submission)
 | Menu Management       | `/menu`          | **Implemented (Phases 3–4)** — category + item tables, modals, filters, image thumbs |
 | Customer Menu (share) | `/customer-menu` | **Implemented (Phase 5)** — copyable public link, live stats, privacy notes |
 | Public digital menu   | `/menu/cafe`     | **Implemented (Phase 5)** — customer-facing, mobile-first, no admin UI |
-| Orders                | `/orders`        | Placeholder card (Phase 6)                         |
-| Billing               | `/billing`       | Placeholder card (Phase 7)                         |
+| Orders                | `/orders`        | **Implemented (Phase 6)** — order table with filters, new-order modal (type/table/cart/live totals), detail modal, status workflow |
+| Billing               | `/billing`       | **Implemented (Phase 7)** — collection stat cards, bills table, payment recording, printable receipt |
 | Suppliers             | `/suppliers`     | Placeholder card (Phase 8)                         |
 | Inventory             | `/inventory`     | Placeholder card (Phase 9)                         |
 | Purchases             | `/purchases`     | Placeholder card (Phase 10)                        |
@@ -182,6 +187,22 @@ Screens implemented in Phase 1 (screenshots to be captured for final submission)
 | Expenses              | `/expenses`      | Placeholder card (Phase 13)                        |
 | Reports               | `/reports`       | Placeholder card (Phase 14)                        |
 | Settings              | `/settings`      | **Implemented (Phase 2)** — two-card form: cafe profile + billing/receipt, logo preview, loading skeleton, inline validation, save/discard actions |
+
+### Orders Screen Behaviour (Phase 6)
+
+The orders page (`/orders`, `data-page="orders"`) shows every order newest first with columns for number, type (dine-in rows carry a table chip), item count, total, status badge, payment badge and placed time. Toolbar: debounced search by order number plus status, type and payment filters.
+
+**New order modal** — a segmented Dine-in/Takeaway toggle shows the table-number field only for dine-in; an item picker lists available dishes with prices (sold-out items hidden) and an add button merges duplicates into one line; the cart supports quantity steppers and removal; a dark totals box recalculates subtotal/discount/tax/grand-total live as lines or the discount change. Client validation mirrors the server: table required for dine-in (1–999), quantity integers 1–999, discount ≥ 0 and never above the subtotal. The client totals are UX only — the server recalculates everything on POST.
+
+**Status workflow** — row actions offer View / Cancel / Delete; Cancel is hidden for completed and cancelled orders, Delete appears only for cancelled ones. The detail modal renders meta info, item lines and the money breakdown read-only plus a status dropdown (Pending → Preparing → Ready → Completed). Server rules: cancelled orders are frozen, paid orders cannot be cancelled.
+
+### Billing Screen Behaviour (Phase 7)
+
+The billing page (`/billing`) opens with three stat cards — Billed, Collected and Outstanding — computed server-side from `GET /api/bills` summary over the filtered result set. The bills table adds money columns (subtotal, discount, tax with its rate, grand total), payment method and status badges per row.
+
+**Payments** — "Mark paid" opens a modal with four method buttons (Cash / UPI / Card / Other); choosing one calls `POST /api/bills/{id}/pay`. Paid bills can never be double-charged (409) and cancelled orders refuse payment.
+
+**Printable receipt** — "Receipt" fetches bill detail including cafe branding (name, address, phone, currency, footer from Settings) and renders a thermal-style paper slip: header, dashed separators, line items with quantity × price, tax/discount/total block and footer message. "Print receipt" triggers the browser print dialog; print CSS hides everything except the paper and constrains it to 80 mm for receipt printers.
 
 ### Customer Digital Menu Behaviour (Phase 5)
 
@@ -237,15 +258,21 @@ No reports exist yet. Planned from Phase 14: daily/weekly/monthly sales, order s
 | `app/models/cafe_setting.py`      | CafeSetting model (singleton row)                       |
 | `app/models/category.py`          | Category model + 1:N items relationship                 |
 | `app/models/menu_item.py`         | MenuItem model (FK to categories, per-category unique)  |
+| `app/models/order.py`             | Order + OrderItem models (bill fields, snapshots, cascades) |
 | `app/schemas/cafe_setting.py`     | Pydantic request/response schemas + validation          |
 | `app/schemas/category.py`         | Category create/update/read schemas                     |
 | `app/schemas/menu_item.py`        | Menu item schemas; price > 0, rounding, trims           |
+| `app/schemas/order.py`            | Order create/status/payment/read schemas; qty & discount rules |
 | `app/services/settings_service.py`| Get-or-create singleton, update logic                   |
 | `app/services/category_service.py`| Category CRUD, duplicate check, delete guard            |
 | `app/services/menu_item_service.py`| Item CRUD, FK validation, per-category duplicate check |
+| `app/services/order_service.py`   | Order creation with server totals, status workflow, delete guard |
+| `app/services/billing_service.py` | Bill list + summary totals, payment recording           |
 | `app/routers/settings.py`         | GET/PUT /api/settings                                   |
 | `app/routers/categories.py`       | CRUD /api/categories (+search, include_inactive)        |
 | `app/routers/menu.py`             | CRUD /api/menu/items (+filters)                         |
+| `app/routers/orders.py`           | Orders API: list/create/detail/status/delete            |
+| `app/routers/billing.py`          | Bills API: list/detail/pay                              |
 | `static/js/api.js`                | Fetch wrapper with ApiError                             |
 | `static/js/common.js`             | Shell injection, navigation, toasts, confirm dialogs    |
 | `static/js/validation.js`         | Reusable form validators                                |
@@ -259,7 +286,10 @@ No reports exist yet. Planned from Phase 14: daily/weekly/monthly sales, order s
 | `static/js/customer-menu.js`      | Share page: link copy + live stats                      |
 | `static/js/public-menu.js`        | Public menu rendering, search, states                   |
 | `static/css/public-menu.css`      | Standalone customer-menu theme                          |
-| `tests/`                          | pytest suite (startup, database, settings, categories, menu items, public menu) |
+| `static/js/orders.js`             | New-order modal, cart with live totals, status workflow |
+| `static/js/billing.js`            | Bills table, stat cards, payment modal, receipt render  |
+| `static/css/orders.css`           | Orders & Billing styles incl. printable receipt CSS     |
+| `tests/`                          | pytest suite (startup, database, settings, categories, menu items, public menu, orders, billing) |
 
 ### Error Envelope
 
@@ -267,7 +297,7 @@ All API errors return `{ "success": false, "message": ..., "errors": [...] }`; v
 
 ## Chapter 8 — Software System Testing
 
-Automated tests (`uv run pytest`) — 102 passed on 2026-08-23 (startup 19, database 5, settings 15, categories 22, menu items 32, public menu 9):
+Automated tests (`uv run pytest`) — 158 passed on 2026-08-23 (startup 19, database 5, settings 15, categories 22, menu items 32, public menu 9, orders 37, billing 19):
 
 | Test Case                          | Input                    | Expected Result                     | Status |
 | ---------------------------------- | ------------------------ | ----------------------------------- | ------ |
@@ -277,8 +307,8 @@ Automated tests (`uv run pytest`) — 102 passed on 2026-08-23 (startup 19, data
 | Static assets served               | GET css/js/favicon       | 200 correct content type            | Pass   |
 | Database file created at startup   | lifespan init_db()       | data/cafe.db exists                 | Pass   |
 | Session executes query             | SELECT 1 via session     | Returns 1                           | Pass   |
-| Phase 3–4 tables registered        | Base.metadata            | cafe_settings, categories, menu_items present | Pass |
-| No future domain tables            | Base.metadata            | orders/inventory/etc. absent        | Pass   |
+| Implemented tables registered      | Base.metadata            | cafe_settings, categories, menu_items, orders, order_items present | Pass |
+| No future domain tables            | Base.metadata            | inventory/purchases/employees/etc. absent | Pass |
 
 ### Settings Module Test Cases (Phase 2)
 
@@ -369,6 +399,64 @@ UI testing (manual): settings form loads with skeleton then populated fields; in
 
 Live smoke test (uvicorn on a free port): `/menu/cafe` returned 200 and served `public-menu.js`/`public-menu.css`; the page HTML contained no admin shell references; `/api/public/menu` returned the success envelope. Against a database without published items the feed correctly reports zero sections, which triggers the page's "Menu coming soon" empty state; section/item payloads and flags are verified by the automated tests above.
 
+### Orders Module Test Cases (Phase 6)
+
+Tests run against known settings (tax 5%) and a private category with ₹100/₹50 items; the original settings are restored afterwards.
+
+| Test Case                          | Input                                    | Expected Result                              | Status |
+| ---------------------------------- | ---------------------------------------- | -------------------------------------------- | ------ |
+| Create dine-in order               | 2×₹100 + 1×₹50, ₹10 discount             | 201; subtotal 250, tax 12, total 252 (server-calculated) | Pass |
+| Order number auto-generated        | POST order                               | `ORD-xxxx` matching pattern                  | Pass   |
+| Takeaway without table             | order_type Takeaway                      | 201, table_number null                       | Pass   |
+| Takeaway ignores table number      | table_number sent with takeaway          | Forced to null                               | Pass   |
+| Dine-in without table              | table_number absent                      | 422 "Table number is required"               | Pass   |
+| Invalid order type                 | "Delivery"                               | 422                                          | Pass   |
+| Money rounding                     | 3 × ₹19.99 with 5% tax                   | subtotal 59.97, tax 3.0, total 62.97         | Pass   |
+| Empty/missing/zero-id item lines   | Parametrised invalid item lists          | 422 with field errors                        | Pass   |
+| Invalid quantities                 | 0, −2, 1.5, "two", true, 1000            | 422 each                                     | Pass   |
+| Unknown menu item                  | menu_item_id 999999                      | 404 "not found" message                      | Pass   |
+| Unavailable dish ordered           | Sold-out item                            | 409 "currently marked unavailable"           | Pass   |
+| Duplicate lines for one dish       | Same id twice                            | 422 (raise quantity instead)                 | Pass   |
+| Invalid discounts                  | −5, "free", true                         | 422 each                                     | Pass   |
+| Discount above subtotal            | ₹51 discount on ₹50 subtotal             | 400 "cannot be greater than the order subtotal" | Pass |
+| Zero discount allowed              | discount_amount 0                        | 201, stored 0.0                              | Pass   |
+| Full status lifecycle              | Pending → Preparing → Ready → Completed  | 200 at each step with message                | Pass   |
+| Invalid status values              | "Cooking", "", "pending"                 | 422 each                                     | Pass   |
+| Cancelled orders frozen            | Reopen attempt after cancel              | 409 "Cancelled orders cannot be changed"     | Pass   |
+| Delete guard                       | DELETE active order                      | 409 until cancelled, then 200 then 404       | Pass   |
+| List newest first with counts      | GET /api/orders                          | item_count ≥ 1 on created rows               | Pass   |
+| Filters status/type/payment        | Query params                             | Only matching rows returned                  | Pass   |
+| Search by number fragment          | Last 4 digits of ORD-xxxx                | Target found                                 | Pass   |
+| Detail includes snapshot lines     | GET /api/orders/{id}                     | item_name/unit_price/line_total present      | Pass   |
+| Missing order 404s                 | GET/PUT-status/DELETE id 999999          | Error envelope each time                     | Pass   |
+| Failed create changes nothing      | POST empty items                         | List count unchanged                         | Pass   |
+| Persistence in SQLite              | Direct session query                     | Row + items stored with exact totals         | Pass   |
+
+### Billing Module Test Cases (Phase 7)
+
+Runs against tax 10% with a ₹150 item for hand-checkable maths.
+
+| Test Case                          | Input                                    | Expected Result                              | Status |
+| ---------------------------------- | ---------------------------------------- | -------------------------------------------- | ------ |
+| Pay with every method              | Cash / UPI / Card / Other                | 200; Paid + method echoed                    | Pass   |
+| paid_at stamped                    | POST pay                                 | Timestamp not null                           | Pass   |
+| Double payment blocked             | Second POST pay                          | 409 "already paid"                           | Pass   |
+| Cancelled bill cannot be paid      | Pay after cancel                         | 409 "cancelled"                              | Pass   |
+| Unknown bill payment               | id 999999                                | 404 envelope                                 | Pass   |
+| Invalid methods                    | "Bitcoin", "", "cash"                    | 422 each                                     | Pass   |
+| Paid order cannot be cancelled     | PUT status Cancelled after pay           | 409 message mentioning refund policy         | Pass   |
+| Tax & discount maths               | ₹300 − ₹30 discount @ 10%                | tax 27.0, total 297.0                        | Pass   |
+| Server-calculated discounted total | ₹150 − ₹25 takeaway                      | total 137.5                                  | Pass   |
+| Summary totals consistent          | GET /api/bills                           | billed = Σ totals; collected/outstanding correct | Pass |
+| Payment filters                    | payment_status / payment_method          | Only matching bills returned                 | Pass   |
+| Search by bill number              | Number fragment                          | Target bill found                            | Pass   |
+| Receipt branding block             | GET /api/bills/{id}                      | cafe name/currency/footer from settings      | Pass   |
+| Missing bill detail                | GET /api/bills/999999                    | 404 success=false envelope                   | Pass   |
+
+Live smoke test (uvicorn against a temporary SQLite file): `/orders` and `/billing` pages served their full markup; an order placed through the API returned `ORD-0001` with subtotal 240, tax 11.5, total 241.5 (2×₹120 − ₹10 @ 5%); payment via UPI set Paid with a timestamp; the bill detail carried the receipt branding block; the summary cards matched billed=collected=241.5, outstanding=0; quantity 0 was rejected over the wire.
+
+UI testing (manual): new-order modal shows/hides the table field with the type toggle, merges duplicate dishes into one line, live totals track cart and discount changes; billing stat cards update with filters; the receipt modal renders the paper slip and print CSS isolates it during printing.
+
 ## Chapter 9 — Implementation
 
 ### Installation
@@ -386,7 +474,9 @@ Current UI requires no training beyond navigation; module-specific training will
 
 ### Limitations
 
-* Business modules not yet implemented (see roadmap)
+* Stock/supplier/employee modules not yet implemented (see roadmap)
+* Orders cannot be edited after placement — cancel and re-take instead (keeps bills audit-proof)
+* No refunds in-system; refunds for paid orders are handled manually outside the software
 * Single computer / single cafe deployment
 * No authentication yet (planned as simple admin/staff login)
 
@@ -421,8 +511,8 @@ QR-code menu access, online ordering/payments, multi-branch support, cloud backu
 | 2     | Cafe Settings                   | Implemented |
 | 3–4   | Categories & Menu Items         | Implemented |
 | 5     | Customer Digital Menu           | Implemented |
-| 6     | Orders                          | Planned     |
-| 7     | Billing                         | Planned     |
+| 6     | Orders                          | Implemented |
+| 7     | Billing                         | Implemented |
 | 8     | Suppliers                       | Planned     |
 | 9     | Inventory                       | Planned     |
 | 10    | Purchases                       | Planned     |

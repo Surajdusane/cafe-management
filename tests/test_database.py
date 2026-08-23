@@ -28,16 +28,20 @@ def test_session_executes_select():
         assert result == 1
 
 
-def test_metadata_registers_phase_3_4_tables_only():
+def test_metadata_registers_implemented_tables():
     registered = set(Base.metadata.tables.keys())
 
-    assert {"cafe_settings", "categories", "menu_items"}.issubset(registered)
+    assert {
+        "cafe_settings",
+        "categories",
+        "menu_items",
+        "orders",
+        "order_items",
+    }.issubset(registered)
 
 
 def test_metadata_has_no_future_domain_tables_yet():
     future_tables = {
-        "orders",
-        "order_items",
         "inventory_items",
         "inventory_transactions",
         "suppliers",

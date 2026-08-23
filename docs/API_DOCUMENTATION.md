@@ -292,6 +292,154 @@ Returns cafe branding plus every **active** category that has at least one item.
 }
 ```
 
+### GET /api/orders
+
+Lists orders newest first, each with an `item_count`. The full item lines are returned by the single-order endpoint.
+
+| Query parameter  | Type   | Notes                                        |
+| ---------------- | ------ | -------------------------------------------- |
+| `search`         | string | matches `order_number`                       |
+| `order_status`   | string | Pending / Preparing / Ready / Completed / Cancelled |
+| `order_type`     | string | Dine-in / Takeaway                           |
+| `payment_status` | string | Unpaid / Paid                                |
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": 1,
+        "order_number": "ORD-0001",
+        "order_type": "Dine-in",
+        "table_number": 4,
+        "status": "Pending",
+        "item_count": 2,
+        "subtotal": 250.0,
+        "discount_amount": 10.0,
+        "tax_percent": 5.0,
+        "tax_amount": 12.0,
+        "total": 252.0,
+        "payment_method": null,
+        "payment_status": "Unpaid",
+        "created_at": "2026-08-23T13:00:00"
+      }
+    ],
+    "count": 1
+  }
+}
+```
+
+### POST /api/orders
+
+Creates an order. **The server calculates all money values** — the client sends only the type, optional table, item references and a discount.
+
+**Request body**
+
+| Field            | Type    | Required | Rules                                                     |
+| ---------------- | ------- | -------- | --------------------------------------------------------- |
+| `order_type`     | string  | yes      | `"Dine-in"` or `"Takeaway"`                               |
+| `table_number`   | int     | for Dine-in | 1–999; forced to null for takeaways                     |
+| `items`          | array   | yes      | 1–50 entries of `{menu_item_id: int>0, quantity: int 1–999}` |
+| `discount_amount`| number  | no       | ≥ 0, ≤ subtotal (checked against real prices), default 0   |
+
+```json
+{
+  "order_type": "Dine-in",
+  "table_number": 4,
+  "items": [
+    { "menu_item_id": 3, "quantity": 2 },
+    { "menu_item_id": 7, "quantity": 1 }
+  ],
+  "discount_amount": 10
+}
+```
+
+Server-side business rules:
+
+* every `menu_item_id` must exist (**404**) and be marked available (**409**);
+* the same dish may appear on one line only — raise its quantity instead (**422**);
+* dine-in requires a table number (**422**);
+* discount above the subtotal is refused with **400**;
+* totals are computed as `taxable = subtotal − discount`, `tax = taxable × tax_percent/100` (rate snapshotted from settings), `total = taxable + tax`.
+
+**Response 201** — full order detail including snapshot item lines (`item_name`, `unit_price`, `quantity`, `line_total`). Errors: 404 · 409 · 400 · 422.
+
+### GET /api/orders/{order_id}
+
+Full order detail with item lines and audit timestamps. **404** if missing.
+
+### PUT /api/orders/{order_id}/status
+
+Moves the order through its workflow.
+
+```json
+{ "status": "Preparing" }
+```
+
+Rules: cancelled orders are frozen (**409** on any change); a paid order cannot be cancelled (**409**) — refunds happen outside the system. **Response 200** with updated detail.
+
+### DELETE /api/orders/{order_id}
+
+Hard-deletes an order **only when it is Cancelled** (otherwise **409**). Completed history is never deletable.
+
+### GET /api/bills
+
+The orders table seen through a money lens, plus collection totals for dashboard cards.
+
+| Query parameter  | Type   | Notes                        |
+| ---------------- | ------ | ---------------------------- |
+| `search`         | string | matches bill/order number    |
+| `payment_status` | string | Unpaid / Paid                |
+| `payment_method` | string | Cash / UPI / Card / Other    |
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [ { "...same shape as order summary..." : "" } ],
+    "count": 1,
+    "summary": {
+      "count": 1,
+      "billed_total": 252.0,
+      "collected_total": 252.0,
+      "outstanding_total": 0.0
+    }
+  }
+}
+```
+
+### GET /api/bills/{order_id}
+
+Bill detail used by the printable receipt: everything about the order plus the cafe branding block.
+
+```json
+{
+  "success": true,
+  "data": {
+    "bill": { "order_number": "ORD-0001", "items": [], "subtotal": 250.0, "discount_amount": 10.0, "tax_percent": 5.0, "tax_amount": 12.0, "total": 252.0, "payment_status": "Paid", "paid_at": "2026-08-23T13:02:11", "...": "..." },
+    "cafe": {
+      "cafe_name": "Brew & Bean Cafe",
+      "address": "12 Station Road, Pune",
+      "phone": "9876543210",
+      "logo_url": null,
+      "currency": "₹",
+      "receipt_footer": "Thank you for visiting!"
+    }
+  }
+}
+```
+
+### POST /api/bills/{order_id}/pay
+
+Records a payment — the only way a bill becomes Paid.
+
+```json
+{ "payment_method": "UPI" }
+```
+
+Sets `payment_status = "Paid"`, stores the method and stamps `paid_at`. **Responses:** 200 · 404 unknown bill · 409 already paid or cancelled order · 422 invalid method.
+
 ## Error Handling
 
 | Status | Cause                              | Body                                  |
@@ -329,8 +477,8 @@ The public page loads only `public-menu.css`, `api.js` and `public-menu.js`; the
 
 Everything under `static/` is served at `/static/...`.
 
-- `/static/css/main.css`, `/static/css/dashboard.css`, `/static/css/menu.css`, `/static/css/responsive.css`, `/static/css/public-menu.css`
-- `/static/js/api.js`, `/static/js/common.js`, `/static/js/validation.js`, `/static/js/dashboard.js`, `/static/js/categories.js`, `/static/js/menu-items.js`, `/static/js/settings.js`, `/static/js/customer-menu.js`, `/static/js/public-menu.js`
+- `/static/css/main.css`, `/static/css/dashboard.css`, `/static/css/menu.css`, `/static/css/orders.css`, `/static/css/responsive.css`, `/static/css/public-menu.css`
+- `/static/js/api.js`, `/static/js/common.js`, `/static/js/validation.js`, `/static/js/dashboard.js`, `/static/js/categories.js`, `/static/js/menu-items.js`, `/static/js/orders.js`, `/static/js/billing.js`, `/static/js/settings.js`, `/static/js/customer-menu.js`, `/static/js/public-menu.js`
 - `/static/images/favicon.svg`
 
 ## Frontend API Utility
@@ -347,4 +495,5 @@ API.delete("/api/items/1")
 It parses the envelope, throws `ApiError(message, status, errors)` on failure and maps network failures to a friendly message. Toast notifications are provided by `UI.toast(message, type)` in `common.js`. The public menu page reuses `api.js` but not `common.js`.
 
 ---
-*Last updated: Phase 5 completion (Customer Digital Menu). Categories and menu-item endpoints documented together with their phases (3–4).*
+*Last updated: Phase 6–7 completion (Orders and Billing endpoints).*
+*Previous: Phase 5 completion (Customer Digital Menu). Categories and menu-item endpoints documented together with their phases (3–4).*

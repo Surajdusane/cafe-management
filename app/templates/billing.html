@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/main.css" />
+  <link rel="stylesheet" href="/static/css/orders.css" />
   <link rel="stylesheet" href="/static/css/responsive.css" />
 </head>
 <body data-page="billing">
@@ -19,17 +20,89 @@
           <h2>Billing</h2>
           <p class="lede">Automatic totals, tax and discounts with printable receipts.</p>
         </div>
-        <span class="badge badge-planned">Planned · Phase 7</span>
+        <span class="badge badge-ok">Live · Phase 7</span>
       </section>
-      <section class="card placeholder-card">
-        <div class="ph-icon" data-icon="billing"></div>
-        <h3>Coming soon</h3>
-        <p>Phase 7 adds server-calculated bills, payment methods and a printable receipt.</p>
-        <a class="btn btn-ghost" href="/">Back to dashboard</a>
+
+      <section class="stat-cards">
+        <div class="stat-card"><div class="label">Billed (shown)</div><div class="value" id="statBilled">—</div></div>
+        <div class="stat-card is-collected"><div class="label">Collected</div><div class="value" id="statCollected">—</div></div>
+        <div class="stat-card is-outstanding"><div class="label">Outstanding</div><div class="value" id="statOutstanding">—</div></div>
+      </section>
+
+      <section class="card" id="billsCard">
+        <header class="card-head">
+          <h3>Bills</h3>
+          <a class="btn btn-ghost btn-sm" href="/orders">+ Take a new order</a>
+        </header>
+        <div class="toolbar">
+          <input class="input" id="billSearch" type="search" placeholder="Search bill number…" autocomplete="off" />
+          <select class="input" id="billPaymentFilter" aria-label="Filter by payment status">
+            <option value="">Paid &amp; unpaid</option>
+            <option>Unpaid</option>
+            <option>Paid</option>
+          </select>
+          <select class="input" id="billMethodFilter" aria-label="Filter by payment method">
+            <option value="">All methods</option>
+            <option>Cash</option>
+            <option>UPI</option>
+            <option>Card</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Bill №</th>
+                <th>Date</th>
+                <th>Order</th>
+                <th class="num">Subtotal</th>
+                <th class="num">Discount</th>
+                <th class="num">Tax</th>
+                <th class="num">Grand total</th>
+                <th>Method</th>
+                <th>Status</th>
+                <th class="col-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="billTableBody"></tbody>
+          </table>
+        </div>
+        <p class="table-note">Every amount is calculated by the server when the order is placed — the receipt always matches the books.</p>
       </section>
     </div>
   </main>
+
+  <!-- ===================== Payment modal ===================== -->
+  <div class="modal-overlay" id="payModal" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="payTitle" style="width:min(380px, calc(100vw - 40px))">
+      <h4 id="payTitle">Record payment</h4>
+      <p id="paySubtitle"></p>
+      <div class="pay-methods" style="margin-bottom:18px">
+        <button type="button" class="method-btn" data-method="Cash">Cash</button>
+        <button type="button" class="method-btn" data-method="UPI">UPI</button>
+        <button type="button" class="method-btn" data-method="Card">Card</button>
+        <button type="button" class="method-btn" data-method="Other">Other</button>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close-modal>Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== Receipt modal ===================== -->
+  <div class="modal-overlay" id="receiptModal" hidden>
+    <div class="modal-box receipt-modal-box" role="dialog" aria-modal="true" aria-labelledby="receiptTitle">
+      <div id="receiptPaper" class="receipt-paper"><!-- rendered by billing.js --></div>
+      <div class="receipt-actions">
+        <button type="button" class="btn btn-ghost" data-close-modal>Close</button>
+        <button type="button" class="btn btn-primary" id="printReceiptBtn">Print receipt</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/js/api.js"></script>
   <script src="/static/js/common.js"></script>
+  <script src="/static/js/billing.js"></script>
 </body>
 </html>
