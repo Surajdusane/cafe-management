@@ -2,9 +2,9 @@
 
 This document lists every table that exists in the SQLite database (`data/cafe.db`), with field-level detail. It is updated after each phase.
 
-## Current Status (Phase 10 — Purchases)
+## Current Status (Phase 11–12 — Employees & Salaries)
 
-**Domain tables created so far: 10.** Phase 10 added `purchases` (purchase headers with server-calculated totals) and `purchase_items` (purchased material lines that automatically increase inventory).
+**Domain tables created so far: 12.** Phase 11 added `employees` (staff master with role, joining date and salary type). Phase 12 added `salaries` (monthly salary payments with server-calculated net salary, one record per employee per month).
 
 | Table                   | Purpose                                       | Phase |
 | ----------------------- | --------------------------------------------- | ----- |
@@ -18,6 +18,8 @@ This document lists every table that exists in the SQLite database (`data/cafe.d
 | inventory_transactions  | Stock movement history                        | 9     |
 | purchases               | Purchase headers with totals and payment      | 10    |
 | purchase_items          | Purchased material lines                      | 10    |
+| employees               | Employee master records                       | 11    |
+| salaries                | Monthly salary payments                       | 12    |
 
 ## Table: cafe_settings
 
@@ -206,14 +208,54 @@ One row per purchased material line, belonging to exactly one purchase. Created 
 
 **Constraints & rules:** deleting a purchase removes its lines (cascade); snapshots keep history readable after renames/deletions; every successful line also writes one `Stock In` row in `inventory_transactions` (note `Purchase PUR-xxxx`) and increases `current_quantity` — all within the same transaction as the header.
 
+## Table: employees
+
+One row per cafe staff member. `base_salary` is a reference amount interpreted according to `salary_type` (per month / per day / per hour); actual payments are recorded separately in `salaries`, which copy the base salary used at payment time. Created in Phase 11.
+
+| Field Name   | Data Type    | Description                                          | Primary Key | Foreign Key | Nullable | Example        |
+| ------------ | ------------ | ---------------------------------------------------- | ----------- | ----------- | -------- | -------------- |
+| id           | INTEGER      | Auto-increment identifier                            | Yes         | No          | No       | 1              |
+| name         | VARCHAR(100) | Full name                                            | No          | No          | No       | Priya Sharma   |
+| mobile       | VARCHAR(15)  | 10-digit Indian mobile number, validated by pattern  | No          | No          | No       | 9876543210     |
+| email        | VARCHAR(100) | Optional email address                               | No          | No          | Yes      | priya@cafe.in  |
+| address      | VARCHAR(255) | Home address                                         | No          | No          | Yes      | 21 Station Rd  |
+| role         | VARCHAR(20)  | Manager / Cashier / Chef / Waiter / Helper / Cleaner | No          | No          | No       | Chef           |
+| joining_date | DATE         | First working day; cannot be in the future           | No          | No          | No       | 2025-06-01     |
+| salary_type  | VARCHAR(10)  | Monthly / Daily / Hourly                             | No          | No          | No       | Monthly        |
+| base_salary  | FLOAT        | Reference amount ≥ 0 for the chosen salary type (2 dp)| No         | No          | No       | 25000.0        |
+| is_active    | BOOLEAN      | False after the employee leaves                      | No          | No          | No       | True           |
+| created_at   | DATETIME     | Row creation timestamp (auto)                        | No          | No          | No       | 2026-08-23 18:00:00 |
+| updated_at   | DATETIME     | Last change timestamp (auto)                         | No          | No          | Yes      | 2026-08-23 18:05:12 |
+
+**Constraints & rules:** role and salary_type are restricted to fixed lists; base salary cannot be negative; joining date cannot be in the future. Deleting an employee through the API is blocked with HTTP 409 while salary records exist so payment history can never disappear silently.
+
+## Table: salaries
+
+One row per salary payment for one employee for one month. Net salary is calculated once by the server when the record is saved (`base + bonus − deduction`) and never recomputed, so later changes to an employee's base salary do not rewrite history. Created in Phase 12.
+
+| Field Name     | Data Type    | Description                                             | Primary Key | Foreign Key                              | Nullable | Example       |
+| -------------- | ------------ | ------------------------------------------------------- | ----------- | ---------------------------------------- | -------- | ------------- |
+| id             | INTEGER      | Auto-increment identifier                               | Yes         | No                                       | No       | 1             |
+| employee_id    | INTEGER      | Paid employee                                           | No          | Yes → employees (ON DELETE RESTRICT)     | No       | 1             |
+| salary_month   | VARCHAR(7)   | Month being paid, format `YYYY-MM`                      | No          | No                                       | No       | 2026-08       |
+| base_salary    | FLOAT        | Base amount used for this payment (2 dp)                | No          | No                                       | No       | 25000.0       |
+| bonus          | FLOAT        | Extra amount added; ≥ 0 (2 dp)                          | No          | No                                       | No       | 1500.0        |
+| deduction      | FLOAT        | Amount subtracted; ≥ 0, ≤ base + bonus (2 dp)           | No          | No                                       | No       | 300.0         |
+| net_salary     | FLOAT        | base + bonus − deduction (2 dp, server-calculated)      | No          | No                                       | No       | 26200.0       |
+| payment_status | VARCHAR(10)  | "Unpaid" or "Paid"                                      | No          | No                                       | No       | Unpaid        |
+| payment_date   | DATE         | Day of actual payment; defaults to today when marked Paid without a date | No | No                          | Yes      | 2026-08-23    |
+| notes          | VARCHAR(255) | Free-text remark                                        | No          | No                                       | Yes      | Festival bonus|
+| created_at     | DATETIME     | Row creation timestamp (auto)                           | No          | No                                       | No       | 2026-08-23 18:00:00 |
+| updated_at     | DATETIME     | Last change timestamp (auto)                            | No          | No                                       | Yes      | 2026-08-23 18:05:12 |
+
+**Constraints & rules:** UNIQUE on `(employee_id, salary_month)` — one record per employee per month (the API returns HTTP 409 on duplicates); unknown employees are refused with HTTP 404; if `base_salary` is omitted it copies the employee's current base salary at save time.
+
 ## Planned Tables (not yet created)
 
 | Table                  | Purpose                                   | Phase |
 | ---------------------- | ----------------------------------------- | ----- |
-| employees              | Employee master                           | 11    |
-| salaries               | Salary payments                           | 12    |
 | expenses               | Operating expenses                        | 13    |
 
 ---
-*Last updated: Phase 10 completion (purchases + purchase_items added).*
-*Previous: Phase 8–9 completion (suppliers + inventory_items + inventory_transactions added).*
+*Last updated: Phase 11–12 completion (employees + salaries added).*
+*Previous: Phase 10 completion (purchases + purchase_items added).*

@@ -247,11 +247,60 @@ One purchased material line inside a purchase. `item_name` and `unit` are copied
 
 **Relationships:** `PurchaseItem N : 1 Purchase` via `purchase_id` (cascade); `PurchaseItem N : 1 InventoryItem` via `inventory_item_id` (`ON DELETE SET NULL`). Not a FK but a business rule: recording the purchase also writes one `Stock In` InventoryTransaction per line and increases `current_quantity` — in the same database transaction as the purchase itself.
 
+### Employee (Phase 11)
+
+A cafe staff member. `base_salary` is a reference amount whose meaning depends on `salary_type` (per month / per day / per hour); actual payments live in the Salary entity.
+
+```text
+┌──────────────────────────────────────────────┐
+│                   Employee                   │
+├──────────────────────────────────────────────┤
+│ PK  id            INTEGER      AUTOINCREMENT │
+│     name          VARCHAR(100) NOT NULL      │
+│     mobile        VARCHAR(15)  NOT NULL (10-digit pattern) │
+│     email         VARCHAR(100) (valid format when set) │
+│     address       VARCHAR(255)               │
+│     role          VARCHAR(20)  NOT NULL (fixed list) │
+│     joining_date  DATE   NOT NULL (not in future) │
+│     salary_type   VARCHAR(10)  NOT NULL (Monthly/Daily/Hourly) │
+│     base_salary   FLOAT  NOT NULL (≥ 0, 2 dp)│
+│     is_active     BOOLEAN      NOT NULL      │
+│     created_at    DATETIME     NOT NULL      │
+│     updated_at    DATETIME                   │
+└──────────────────────────────────────────────┘
+```
+
+**Relationships:** `Employee 1 : N Salary` via `salaries.employee_id` — one employee can have many monthly salary records; each record belongs to exactly one employee (`ON DELETE RESTRICT`). Deleting an employee through the API is blocked with HTTP 409 while salary records exist.
+
+### Salary (Phase 12)
+
+One salary payment for one employee for one month. Net salary is calculated once by the server when the row is saved and never recomputed.
+
+```text
+┌──────────────────────────────────────────────┐
+│                    Salary                    │
+├──────────────────────────────────────────────┤
+│ PK  id             INTEGER     AUTOINCREMENT │
+│ FK  employee_id    INTEGER     NOT NULL → employees.id (RESTRICT) │
+│ U1  salary_month   VARCHAR(7)  NOT NULL ("YYYY-MM"; unique per employee) │
+│     base_salary    FLOAT       NOT NULL (2 dp) │
+│     bonus          FLOAT       NOT NULL ≥ 0 (2 dp) │
+│     deduction      FLOAT       NOT NULL ≥ 0, ≤ base + bonus │
+│     net_salary     FLOAT       NOT NULL (= base + bonus − deduction, server-calculated) │
+│     payment_status VARCHAR(10) NOT NULL ("Paid"/"Unpaid") │
+│     payment_date   DATE        (defaults to today when Paid without a date) │
+│     notes          VARCHAR(255)│
+│     created_at     DATETIME    NOT NULL      │
+│     updated_at     DATETIME                  │
+└──────────────────────────────────────────────┘
+```
+
+**Relationships:** belongs to exactly one `Employee`. The pair `(employee_id, salary_month)` is unique — one record per employee per month (duplicate attempts return HTTP 409).
+
 ## Planned Entities (not yet created)
 
 | Entity               | Relationship to existing entities           | Phase |
 | -------------------- | ------------------------------------------- | ----- |
-| Employee             | 1 : N → Salary                              | 11–12 |
 | Expense              | standalone                                  | 13    |
 
 ## Cardinality Summary (current database)
@@ -266,6 +315,7 @@ InventoryItem        1 ──── N  InventoryTransaction  inventory_transacti
 Supplier             1 ──── N  Purchase        purchases.supplier_id → suppliers.id (SET NULL)
 Purchase             1 ──── N  PurchaseItem    purchase_items.purchase_id → purchases.id (CASCADE)
 InventoryItem        1 ──── N  PurchaseItem    purchase_items.inventory_item_id → inventory_items.id (SET NULL)
+Employee             1 ──── N  Salary          salaries.employee_id → employees.id (RESTRICT + API guard)
 ```
 
 ## Business Rules enforced around Orders
@@ -300,6 +350,17 @@ InventoryItem        1 ──── N  PurchaseItem    purchase_items.inventory_
 * `purchase_date` defaults to today when omitted; payment status starts as Unpaid (or Paid if recorded immediately) and can be toggled later via the API.
 * Deleting a supplier keeps its purchases readable (`supplier_id` cleared, name snapshot retained).
 
+## Business Rules enforced around Employees & Salaries
+
+* Role must be one of Manager / Cashier / Chef / Waiter / Helper / Cleaner; salary type must be Monthly / Daily / Hourly.
+* Mobile numbers follow the 10-digit Indian pattern; emails (when given) must be valid and are stored lowercase.
+* Base salary cannot be negative; joining date cannot be in the future.
+* Net salary formula (server-side only): `net = base + bonus − deduction`; a record whose deduction exceeds base + bonus is refused with HTTP 422 (net can never be negative).
+* One salary record per employee per month — UNIQUE `(employee_id, salary_month)`, duplicates rejected with HTTP 409. The same month may be recorded for different employees.
+* If `base_salary` is omitted when saving a salary, the employee's current base salary is copied into the record at save time; later changes to the employee never rewrite history.
+* Saving a record as `Paid` without an explicit payment date stamps today's date automatically.
+* An employee with existing salary records cannot be deleted (HTTP 409); delete their salary history first.
+
 ---
-*Last updated: Phase 10 completion (Purchase + PurchaseItem entities added).*
-*Previous: Phase 8–9 completion (Suppliers + Inventory entities added).*
+*Last updated: Phase 11–12 completion (Employee + Salary entities added).*
+*Previous: Phase 10 completion (Purchase + PurchaseItem entities added).*
