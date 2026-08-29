@@ -13,6 +13,7 @@ from app.core import config
 from app.core.database import Base, engine, get_db, init_db
 from app.routers.billing import router as billing_router
 from app.routers.categories import router as categories_router
+from app.routers.dashboard import router as dashboard_router
 from app.routers.employees import router as employees_router
 from app.routers.expenses import router as expenses_router
 from app.routers.inventory import router as inventory_router
@@ -57,6 +58,7 @@ app = FastAPI(title=config.APP_NAME, version=config.APP_VERSION, lifespan=lifesp
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 app.include_router(settings_router)
+app.include_router(dashboard_router)
 app.include_router(categories_router)
 app.include_router(menu_router)
 app.include_router(orders_router)

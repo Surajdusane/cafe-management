@@ -1003,6 +1003,47 @@ Estimated profit summary: **Sales − Purchases − Salaries − Expenses**, eac
 }
 ```
 
+### GET /api/dashboard
+
+Live landing-page numbers for the admin dashboard (Phase 15). Everything is recomputed at request time from recorded data — nothing is stored on the dashboard side. Definitions mirror the rest of the system: **today's sales** = paid orders created today, **pending orders** = open (Pending/Preparing/Ready) orders, **unpaid bills** = outstanding value of unpaid non-cancelled orders, **low stock** = active materials at or below their minimum, **monthly expenses** = running costs since the 1st of this month. **Top sellers** ignore cancelled orders. The **sales trend** is a rolling 7-day window of paid totals.
+
+```json
+{
+  "success": true,
+  "data": {
+    "cafe": { "name": "Café Desk", "currency": "₹" },
+    "date": "2026-08-29",
+    "stats": {
+      "today_sales": 1550.0,
+      "today_orders": 4,
+      "pending_orders": 2,
+      "unpaid_bills": 620.0,
+      "menu_items": 36,
+      "low_stock": 3,
+      "employees": 8,
+      "monthly_expenses": 18500.0
+    },
+    "sales_trend": {
+      "labels": ["Sat 23", "Sun 24", "Mon 25", "Tue 26", "Wed 27", "Thu 28", "Fri 29"],
+      "amounts": [0, 0, 340.0, 780.0, 620.0, 1150.0, 1550.0],
+      "orders": [0, 0, 2, 4, 3, 5, 4]
+    },
+    "top_items": [ { "name": "Cappuccino", "quantity": 42 } ],
+    "recent_orders": [ {
+      "id": 1,
+      "order_number": "ORD-0001",
+      "order_type": "Dine-in",
+      "table_number": 3,
+      "status": "Completed",
+      "total": 620.0,
+      "payment_status": "Paid",
+      "payment_method": "Cash",
+      "created_at": "2026-08-29T14:12:00"
+    } ]
+  }
+}
+```
+
 ## Error Handling
 
 | Status | Cause                              | Body                                  |
@@ -1058,5 +1099,5 @@ API.delete("/api/items/1")
 It parses the envelope, throws `ApiError(message, status, errors)` on failure and maps network failures to a friendly message. Toast notifications are provided by `UI.toast(message, type)` in `common.js`. The public menu page reuses `api.js` but not `common.js`.
 
 ---
-*Last updated: Phase 13–14 completion (Employees, Salaries, Expenses and Reports endpoints added).*
+*Last updated: Phase 15 completion (dashboard endpoint `GET /api/dashboard` added).*
 *Previous: Phase 10 completion (Purchases endpoints). Suppliers and Inventory endpoints documented together with their phases (8–9).*

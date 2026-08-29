@@ -17,6 +17,7 @@ A final-year project documentation for a web-based Cafe Management System develo
 | 1.6     | 2026-08-23 | Phases 8–9 Suppliers & Inventory implemented (supplier CRUD, raw materials with units/min stock/supplier link, atomic Stock In/Out/Adjustment movements with history and low-stock warnings) |
 | 1.7     | 2026-08-23 | Phase 10 Purchase Management implemented (multi-item purchases with server-calculated totals, automatic inventory update in one transaction, purchase history with search/date/supplier/payment filters) |
 | 1.8     | 2026-08-29 | Phases 11–14 Employees, Salaries, Expenses & Reports implemented (employee CRUD with salary-delete guard; monthly salary records with server-calculated net salary; expense recording with category/payment-method allowlists and filters; report module with seven tabs — sales, orders, inventory, purchases, salaries, expenses and estimated profit) |
+| 1.9     | 2026-08-29 | Phase 15 Live Dashboard implemented (GET /api/dashboard aggregating today's sales/orders, pending orders, unpaid bills, low stock, employee count and monthly expenses; 7-day sales trend chart; top sellers; recent orders; skeleton loading, error panel with retry, responsive 4-column stat grid) |
 
 ---
 
@@ -56,7 +57,7 @@ In the present system the cafe typically works with:
 
 The proposed Cafe Management System is a local web application running on the cafe's computer. Staff manage menu, orders, billing, inventory, suppliers, employees, salaries and expenses through a browser interface backed by a FastAPI server and a single-file SQLite database.
 
-Development follows 17 phases (see Development Phases). Phases 1–14 are complete: Foundation, Cafe Settings, Categories, Menu Items, the Customer Digital Menu, Orders, Billing, Suppliers, Inventory, Purchases, Employees, Salaries, Expenses and Reports. The live dashboard (Phase 15) and the final documentation pass remain.
+Development follows 17 phases (see Development Phases). Phases 1–15 are complete: Foundation, Cafe Settings, Categories, Menu Items, the Customer Digital Menu, Orders, Billing, Suppliers, Inventory, Purchases, Employees, Salaries, Expenses, Reports and the live Dashboard. Only the final documentation pass (Phase 17) remains.
 
 ### Scope of Proposed System
 
@@ -103,7 +104,7 @@ Development follows 17 phases (see Development Phases). Phases 1–14 are comple
 | 16 | Salary runs (base + bonus − deduction)              | Implemented       |
 | 17 | Expense recording                                   | Implemented       |
 | 18 | Reports and estimated profit summary                | Implemented       |
-| 19 | Live dashboard statistics                           | Planned (Phase 15)|
+| 19 | Live dashboard statistics                           | Implemented       |
 
 ### Non-Functional Requirements
 
@@ -203,7 +204,7 @@ Screens implemented in Phase 1 (screenshots to be captured for final submission)
 
 | Screen                | Route            | Notes                                              |
 | --------------------- | ---------------- | -------------------------------------------------- |
-| Dashboard shell       | `/`              | Sidebar, top bar, status chips, placeholder stats  |
+| Dashboard            | `/`              | **Implemented (Phase 15)** — eight live stat cards (today's sales/orders, pending orders, unpaid bills, menu items, low stock, employees, monthly expenses), 7-day sales trend bar chart, top-sellers ranking, recent-orders table; skeleton loading and an error panel with retry |
 | Menu Management       | `/menu`          | **Implemented (Phases 3–4)** — category + item tables, modals, filters, image thumbs |
 | Customer Menu (share) | `/customer-menu` | **Implemented (Phase 5)** — copyable public link, live stats, privacy notes |
 | Public digital menu   | `/menu/cafe`     | **Implemented (Phase 5)** — customer-facing, mobile-first, no admin UI |
@@ -286,6 +287,17 @@ The reports page (`/reports`) is a read-only dashboard: it displays data and nev
 
 Loading skeleton rows and a "Could not load report" error state cover each tab; empty ranges show an empty-state row instead of a table.
 
+### Dashboard Screen Behaviour (Phase 15)
+
+The dashboard (`/`) is the landing screen: it displays live numbers and never edits anything. All figures come from `GET /api/dashboard`, which recomputes everything at request time — nothing is stored or cached on the dashboard side.
+
+* **Eight stat cards** (4-column grid, collapsing responsively) — Today's Sales, Today's Orders, Pending Orders, Unpaid Bills, Menu Items, Low Stock, Employees and Monthly Expenses. Values use the cafe's configured currency via `UI.formatMoney`; each card carries a tinted icon from the shared `common.js` icon registry.
+* **Sales trend card** — a last-7-days rolling window of paid sales rendered as a plain-JS canvas bar chart (same visual language as the Reports chart), with a friendly empty message when there is nothing to plot yet.
+* **Top sellers card** — up to five items ranked by total ordered quantity, ignoring cancelled orders (a cancelled order never sold anything).
+* **Recent orders table** — the latest eight orders with order number, Dine-in/Takeaway (with table chip), total, status badge, payment badge and placed time; links through to Orders and Reports pages.
+* **Loading & error states** — skeleton spinner rows while fetching; on failure the cards dim behind a centred error panel with a **Try again** button that re-fetches. An empty database renders zeroed numbers plus empty states ("No orders yet", "No sales yet") instead of crashing.
+* **Read-only** — no forms, no mutations; it is a summary view only.
+
 ### Customer Digital Menu Behaviour (Phase 5)
 
 Public page at `/menu/cafe`, shareable from the admin `/customer-menu` page:
@@ -334,7 +346,7 @@ The Reports module (Phase 14) provides pre-built, read-only reports. Every figur
 
 **Estimated Profit** is explicitly labelled an *estimated* management summary, not an exact ledger balance: salaries are keyed by month (`YYYY-MM`), so they are matched by the months covered by the selected date range rather than by an exact day. Purchases and expenses are matched on their recorded dates.
 
-Reports are served by the seven `GET /api/reports/*` endpoints (period and mode choices are pattern-validated with HTTP 422 on bad values) and rendered on the `/reports` page described in Chapter 5. The dashboard (Phase 15) will reuse these same read-only aggregations.
+Reports are served by the seven `GET /api/reports/*` endpoints (period and mode choices are pattern-validated with HTTP 422 on bad values) and rendered on the `/reports` page described in Chapter 5. The dashboard (Phase 15) reuses the same read-only philosophy — its own `GET /api/dashboard` recomputes every figure live at request time.
 
 ## Chapter 7 — Coding
 
@@ -401,6 +413,10 @@ Reports are served by the seven `GET /api/reports/*` endpoints (period and mode 
 | `static/js/reports.js`            | Report tabs, plain-JS bar chart, print                  |
 | `static/css/expenses.css`         | Expenses page extras (date inputs, search width)        |
 | `static/css/reports.css`          | Report tabs, summary cards, chart, profit grid, print CSS |
+| `app/services/dashboard_service.py` | Read-only live aggregations for the dashboard        |
+| `app/routers/dashboard.py`        | Dashboard API: GET /api/dashboard                       |
+| `static/js/dashboard.js`          | Stat rendering, plain-JS bar chart, top sellers, recent orders, error/retry |
+| `static/css/dashboard.css`        | Dashboard stat grid, chart box, seller rows, badges     |
 | `static/js/api.js`                | Fetch wrapper with ApiError                             |
 | `static/js/common.js`             | Shell injection, navigation, toasts, confirm dialogs    |
 | `static/js/validation.js`         | Reusable form validators                                |
@@ -730,6 +746,23 @@ Smoke check: `/expenses` page served its markup with `expenses.js` wired; the da
 | Persisted data reflected live          | Create order/purchase/salary/expense, then fetch report | New values appear without any stored report table | Pass |
 
 Smoke check: `/reports` page served its markup with `reports.js` wired; each tab returned a 200 envelope from `/api/reports/*` on the live server, and the Profit tab rendered the four-component Estimated Profit grid.
+
+### Dashboard Module Test Cases (Phase 15)
+
+| Test Case                          | Input                                    | Expected Result                                    | Status |
+| ---------------------------------- | ---------------------------------------- | -------------------------------------------------- | ------ |
+| Envelope & shape                   | `GET /api/dashboard` on any database     | 200 `success:true`; `stats`, `sales_trend` (7 labels/amounts/order-counts), `top_items`, `recent_orders` present | Pass |
+| Cafe branding from settings        | Settings name + currency changed         | Dashboard `cafe.name` / `cafe.currency` reflect them| Pass |
+| Paid order counted today           | New paid order                          | `today_orders` +1, `today_sales` + order total, order appears in recent | Pass |
+| Pending / unpaid not sales         | Unpaid open order                       | `pending_orders` +1, `unpaid_bills` + total, `today_sales` unchanged | Pass |
+| Menu items counts available only   | Add an available + a sold-out item      | Count increases only for the available item        | Pass |
+| Low stock flagged                  | Material with 0 stock ≤ minimum         | `low_stock` +1                                    | Pass |
+| Employee count (active only)       | Add an active + an inactive employee    | Count increases only for the active one            | Pass |
+| Monthly expenses                   | Record an expense                       | `monthly_expenses` grows by its amount             | Pass |
+| Top sellers ranking                | Order an item with quantity 5           | Item appears in `top_items` with quantity ≥ 5      | Pass |
+| Empty database / all zeros         | Fresh DB                                | 200 with zeroed figures — never a crash            | Pass |
+
+Smoke check: `/` rendered its stat grid, chart canvas, top-sellers and recent-orders rows on the live server; killing the API and clicking **Try again** surfaced the error panel correctly.
 
 ## Chapter 9 — Implementation
 

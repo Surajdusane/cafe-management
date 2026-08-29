@@ -2,9 +2,9 @@
 
 This document lists every table that exists in the SQLite database (`data/cafe.db`), with field-level detail. It is updated after each phase.
 
-## Current Status (Phase 13–14 — Expenses & Reports)
+## Current Status (Phase 15 — Dashboard)
 
-**Domain tables created so far: 13.** Phase 11 added `employees` (staff master with role, joining date and salary type). Phase 12 added `salaries` (monthly salary payments with server-calculated net salary, one record per employee per month). Phase 13 added `expenses` (standalone operating-cost records with a fixed category list and payment method). Reports (Phase 14) are read-only aggregations and add no new tables.
+**Domain tables created so far: 13.** Phase 11 added `employees` (staff master with role, joining date and salary type). Phase 12 added `salaries` (monthly salary payments with server-calculated net salary, one record per employee per month). Phase 13 added `expenses` (standalone operating-cost records with a fixed category list and payment method). Reports (Phase 14) are read-only aggregations and add no new tables. The Dashboard (Phase 15) produces its whole summary by reading the existing 13 tables live at request time — `dashboard_service.py` runs the same read-only aggregations the reports use, so no dashboard-specific tables were needed.
 
 | Table                   | Purpose                                       | Phase |
 | ----------------------- | --------------------------------------------- | ----- |
@@ -274,5 +274,5 @@ One row per recorded cafe running cost (electricity, rent, maintenance…). The 
 None — every domain table designed so far exists in the database.
 
 ---
-*Last updated: Phase 13–14 completion (expenses added; reports introduce no new tables).*
-*Previous: Phase 11–12 completion (employees + salaries added).*
+*Last updated: Phase 15 completion (dashboard adds no table — it aggregates the existing 13).*
+*Previous: Phase 13–14 completion (expenses added; reports introduce no new tables).*

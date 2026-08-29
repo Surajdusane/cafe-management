@@ -400,5 +400,5 @@ Expense                — standalone	no FKs; read-only by Reports (Phase 14)
 * There are no foreign keys, so any expense can be deleted without affecting other records.
 
 ---
-*Last updated: Phase 13–14 completion (Expense entity added; Reports aggregate existing entities read-only).*
-*Previous: Phase 11–12 completion (Employee + Salary entities added).*
+*Last updated: Phase 15 completion (Dashboard adds no entity — it reads existing tables live).*
+*Previous: Phase 13–14 completion (Expense entity added; Reports aggregate existing entities read-only).*

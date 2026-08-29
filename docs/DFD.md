@@ -158,6 +158,17 @@ Admin/Staff
             │ no writes — every figure recomputed live from D1, D4–D13
             ▼
      Summary cards + tables + bar chart (static/js/reports.js, printable)
+
+Admin/Staff
+    │ loads "/" (landing page)
+    ▼
+┌───────────────────────────┐  read-only daily/weekly aggregations ────────────────┐
+│ P12 View Dashboard        │  today's sales (paid) · today's orders · pending    │
+│     routers/dashboard.py  │  orders · unpaid bills · menu items · low stock ·   │
+└───────────────────────────┘  employees · monthly expenses · 7-day sales trend · │
+            │ no writes — recomputed live from D1–D13                            │
+            ▼ Top sellers (ignore cancelled) · recent orders (D4/D5)
+     Stat cards + canvas bar chart + ranking (static/js/dashboard.js)
 ```
 
 ### Data dictionary of flows
@@ -201,7 +212,9 @@ Admin/Staff
 | Expense list & filters        | P10 → Browser        | newest first; search + category/method/date filters; summary totals (count, total, categories) |
 | Report request                | Staff → P11          | report tab + date range + mode (period / report_type / group_by) |
 | Report data                   | P11 → Browser        | read-only series/tables: sales, orders, inventory, purchases, salaries, expenses, estimated profit |
+| Dashboard request             | Staff → P12          | opens `/` (page load)                                        |
+| Dashboard data                | P12 → Browser        | 8 stat-card figures, 7-day sales trend, top sellers (ignoring cancelled orders), recent orders — all live reads, no writes |
 
 ---
-*Last updated: Phase 13–14 completion (Expense recording and read-only Report processes added).*
-*Previous: Phase 10 completion (Purchase recording process added). Employees & Salaries moved from planned to implemented in this update.*
+*Last updated: Phase 15 completion (read-only Dashboard process P12 added; low-stock warning noted on the dashboard).*
+*Previous: Phase 13–14 completion (Expense recording and read-only Report processes added). Employees & Salaries moved from planned to implemented in that update.*

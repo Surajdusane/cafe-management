@@ -2,7 +2,7 @@
 
 A simple web-based Cafe Management System built for a final-year BCA/BBA Computer Application academic project. It manages the daily operations of a small or medium-sized cafe: menu, orders, billing, inventory, suppliers, purchases, employees, salaries, expenses and reports.
 
-## Current Status — Phases 1–14 complete (Foundation · Settings · Menu · Customer Digital Menu · Orders · Billing · Suppliers · Inventory · Purchases · Employees · Salaries · Expenses · Reports)
+## Current Status — Phases 1–15 complete (Foundation · Settings · Menu · Customer Digital Menu · Orders · Billing · Suppliers · Inventory · Purchases · Employees · Salaries · Expenses · Reports · Dashboard)
 
 Implemented so far:
 
@@ -24,9 +24,10 @@ Implemented so far:
 - Salaries: one record per employee per month, net salary (base + bonus − deduction) always calculated server-side
 - Expenses: category/payment-method allowlists, date filters and a summary envelope for stat cards
 - Reports: seven read-only views (sales daily/weekly/monthly, orders, inventory, purchases, salaries, expenses) plus an Estimated Profit summary (Sales − Purchases − Salaries − Expenses)
-- Automated tests (358 collected; 357 passed — the one blocked test is a Windows file-lock flake when a running server holds `data/cafe.db`)
+- Dashboard: eight live stat cards (today's sales/orders, pending orders, unpaid bills, menu items, low stock, employees, monthly expenses), a 7-day sales trend bar chart, top-sellers ranking and a recent-orders table with skeleton loading and an error/retry state
+- Automated tests (368 collected; 367 passed — the one blocked test is a Windows file-lock flake when a running server holds `data/cafe.db`)
 
-Not yet implemented (planned phases): live dashboard statistics (Phase 15) and the final testing/documentation pass.
+Not yet implemented (planned phases): the final testing and documentation pass (Phases 16–17).
 
 ## Technology Stack
 

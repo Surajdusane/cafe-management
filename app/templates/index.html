@@ -19,88 +19,127 @@
       <section class="page-head">
         <div>
           <h2>Good day at the café</h2>
-          <p class="lede">This is the foundation build. Live numbers will appear here as modules come online.</p>
+          <p class="lede" data-subtitle>Loading today's numbers…</p>
         </div>
-        <span id="dbStatus" class="status-chip"><span class="dot"></span><span data-label>Checking…</span></span>
+        <span class="badge badge-ok">Live · Phase 15</span>
       </section>
 
-      <section class="stat-grid" aria-label="Key figures">
+      <section class="error-panel card" id="dashError" hidden></section>
+
+      <section class="stat-grid" id="statGrid" aria-label="Key figures">
         <article class="stat-card">
           <div class="stat-top">
             <span class="stat-label">Today's Sales</span>
-            <span class="stat-icon tint-caramel" data-icon="billing"></span>
+            <span class="stat-icon tint-caramel" data-icon="trend"></span>
           </div>
-          <div class="stat-value pending">—</div>
-          <p class="stat-note">Connects when Orders &amp; Billing ship</p>
+          <div class="stat-value pending" data-stat="today_sales"><span class="skeleton-line" style="width:64%"></span></div>
+          <p class="stat-note">Collected from paid orders</p>
         </article>
         <article class="stat-card">
           <div class="stat-top">
             <span class="stat-label">Today's Orders</span>
             <span class="stat-icon tint-sage" data-icon="receipt"></span>
           </div>
-          <div class="stat-value pending">—</div>
-          <p class="stat-note">Connects when Orders ship</p>
+          <div class="stat-value pending" data-stat="today_orders"><span class="skeleton-line" style="width:42%"></span></div>
+          <p class="stat-note">Placed today</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Pending Orders</span>
+            <span class="stat-icon tint-amber" data-icon="clock"></span>
+          </div>
+          <div class="stat-value pending" data-stat="pending_orders"><span class="skeleton-line" style="width:42%"></span></div>
+          <p class="stat-note">Pending · Preparing · Ready</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Unpaid Bills</span>
+            <span class="stat-icon tint-clay" data-icon="billing"></span>
+          </div>
+          <div class="stat-value pending" data-stat="unpaid_bills"><span class="skeleton-line" style="width:64%"></span></div>
+          <p class="stat-note">Outstanding across open orders</p>
         </article>
         <article class="stat-card">
           <div class="stat-top">
             <span class="stat-label">Menu Items</span>
-            <span class="stat-icon tint-amber" data-icon="menu"></span>
+            <span class="stat-icon tint-sage" data-icon="menu"></span>
           </div>
-          <div class="stat-value pending">—</div>
-          <p class="stat-note">Connects when Menu Management ships</p>
+          <div class="stat-value pending" data-stat="menu_items"><span class="skeleton-line" style="width:42%"></span></div>
+          <p class="stat-note">Available dishes</p>
         </article>
         <article class="stat-card">
           <div class="stat-top">
             <span class="stat-label">Low Stock</span>
             <span class="stat-icon tint-clay" data-icon="inventory"></span>
           </div>
-          <div class="stat-value pending">—</div>
-          <p class="stat-note">Connects when Inventory ships</p>
+          <div class="stat-value pending" data-stat="low_stock"><span class="skeleton-line" style="width:42%"></span></div>
+          <p class="stat-note">Materials at or below minimum</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Employees</span>
+            <span class="stat-icon tint-amber" data-icon="employees"></span>
+          </div>
+          <div class="stat-value pending" data-stat="employees"><span class="skeleton-line" style="width:42%"></span></div>
+          <p class="stat-note">Active staff on the roster</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-top">
+            <span class="stat-label">Monthly Expenses</span>
+            <span class="stat-icon tint-caramel" data-icon="expenses"></span>
+          </div>
+          <div class="stat-value pending" data-stat="monthly_expenses"><span class="skeleton-line" style="width:64%"></span></div>
+          <p class="stat-note">Running costs this month</p>
         </article>
       </section>
 
       <section class="dash-grid">
-        <article class="card">
+        <article class="card" id="trendCard">
           <header class="card-head">
-            <h3>Sales trend</h3>
-            <span class="badge badge-planned">Phase 15</span>
+            <h3>Sales trend · last 7 days</h3>
+            <a href="/reports">View reports →</a>
           </header>
-          <div class="card-body">
-            <div class="trend-box">
-              <div>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>
-                <p>The sales chart draws itself once orders start rolling in.</p>
-              </div>
-            </div>
-          </div>
+          <div class="chart-box"><canvas id="trendChart" height="220"></canvas></div>
         </article>
 
-        <article class="card">
+        <article class="card" id="topCard">
           <header class="card-head">
-            <h3>Setup checklist</h3>
+            <h3>Top sellers</h3>
           </header>
-          <div class="card-body">
-            <ul class="setup-list">
-              <li><span class="step-no">✓</span><div><strong>Foundation &amp; navigation</strong><div class="step-meta">Done · Phase 1</div></div></li>
-              <li><span class="step-no">2</span><div><strong>Cafe settings</strong><div class="step-meta">Name, tax, currency, receipt info</div></div></li>
-              <li><span class="step-no">3–4</span><div><strong>Menu categories &amp; items</strong><div class="step-meta">Build your menu</div></div></li>
-              <li><span class="step-no">6–7</span><div><strong>Orders &amp; billing</strong><div class="step-meta">Take orders, print receipts</div></div></li>
-              <li><span class="step-no">8–10</span><div><strong>Suppliers, inventory &amp; purchases</strong><div class="step-meta">Stock the cafe</div></div></li>
-              <li><span class="step-no">11+</span><div><strong>Staff, salaries &amp; expenses</strong><div class="step-meta">Run the team and the books</div></div></li>
-            </ul>
+          <div class="card-body" id="topSellers">
+            <div class="sellers-loading">
+              <span class="skeleton-line" style="width:86%"></span>
+              <span class="skeleton-line" style="width:70%"></span>
+              <span class="skeleton-line" style="width:78%"></span>
+              <span class="skeleton-line" style="width:60%"></span>
+            </div>
           </div>
         </article>
       </section>
 
-      <section class="card" style="margin-top: 16px;">
+      <section class="card" id="recentOrdersCard" style="margin-top: 16px;">
         <header class="card-head">
           <h3>Recent orders</h3>
-          <a href="/orders">View orders →</a>
+          <a href="/orders">View all →</a>
         </header>
-        <div class="empty-state">
-          <div class="es-icon" data-icon="receipt"></div>
-          <h4>No orders yet</h4>
-          <p>Orders you take will show up here. The Orders module arrives in Phase 6.</p>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Order</th>
+                <th>Type</th>
+                <th class="num">Total</th>
+                <th>Status</th>
+                <th>Payment</th>
+                <th>Placed</th>
+              </tr>
+            </thead>
+            <tbody id="recentOrdersBody">
+              <tr class="skeleton-row"><td colspan="6"><div class="skeleton-line" style="width:100%"></div></td></tr>
+              <tr class="skeleton-row"><td colspan="6"><div class="skeleton-line" style="width:100%"></div></td></tr>
+              <tr class="skeleton-row"><td colspan="6"><div class="skeleton-line" style="width:100%"></div></td></tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
