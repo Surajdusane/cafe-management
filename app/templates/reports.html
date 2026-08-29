@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/main.css" />
+  <link rel="stylesheet" href="/static/css/reports.css" />
   <link rel="stylesheet" href="/static/css/responsive.css" />
 </head>
 <body data-page="reports">
@@ -17,19 +18,149 @@
       <section class="page-head">
         <div>
           <h2>Reports</h2>
-          <p class="lede">Sales, inventory, purchases, salaries and profit summaries.</p>
+          <p class="lede">Sales, orders, inventory, purchases, salaries, expenses and an estimated profit summary.</p>
         </div>
-        <span class="badge badge-planned">Planned · Phase 14</span>
+        <span class="badge badge-ok">Live · Phase 14</span>
       </section>
-      <section class="card placeholder-card">
-        <div class="ph-icon" data-icon="reports"></div>
-        <h3>Coming soon</h3>
-        <p>Phase 14 turns your recorded data into daily, weekly and monthly reports plus an estimated profit summary.</p>
-        <a class="btn btn-ghost" href="/">Back to dashboard</a>
+
+      <section class="card report-filters">
+        <form id="reportFilterForm" class="toolbar" novalidate>
+          <div class="filter-note" data-report-label></div>
+          <label class="filter-field">From
+            <input class="input" id="startDate" type="date" />
+          </label>
+          <label class="filter-field">To
+            <input class="input" id="endDate" type="date" />
+          </label>
+          <select class="input" id="modeSelect" aria-label="Report options">
+            <option value="">Report options…</option>
+          </select>
+          <button type="submit" class="btn btn-primary btn-sm">Apply filters</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="resetFiltersBtn">Reset dates</button>
+          <span class="toolbar-check">
+            <button type="button" class="btn btn-ghost btn-sm" id="printBtn">Print</button>
+          </span>
+        </form>
+      </section>
+
+      <nav class="report-tabs" id="reportTabs" aria-label="Report sections">
+        <button type="button" class="tab active" data-report="sales">Sales</button>
+        <button type="button" class="tab" data-report="orders">Orders</button>
+        <button type="button" class="tab" data-report="inventory">Inventory</button>
+        <button type="button" class="tab" data-report="purchases">Purchases</button>
+        <button type="button" class="tab" data-report="salaries">Salaries</button>
+        <button type="button" class="tab" data-report="expenses">Expenses</button>
+        <button type="button" class="tab" data-report="profit">Profit</button>
+      </nav>
+
+      <!-- ============ Sales ============ -->
+      <section class="card report-section" id="report-sales" data-section="sales">
+        <header class="report-head print-header">
+          <h3>Sales Report</h3>
+          <span class="badge badge-ok" id="salesPeriodBadge"></span>
+        </header>
+        <div class="report-summary" id="salesSummary"></div>
+        <div class="chart-box"><canvas id="salesChart" height="220"></canvas></div>
+        <div class="table-wrap printable">
+          <table class="data-table" id="salesTable">
+            <thead><tr><th>Period</th><th class="num">Orders</th><th class="num">Sales</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ Orders ============ -->
+      <section class="card report-section" id="report-orders" data-section="orders" hidden>
+        <header class="report-head print-header"><h3>Orders Report</h3></header>
+        <div class="report-summary" id="ordersSummary"></div>
+        <div class="report-two-col">
+          <div>
+            <h4>By status</h4>
+            <div class="table-wrap printable">
+              <table class="data-table" id="ordersStatusTable">
+                <thead><tr><th>Status</th><th class="num">Orders</th><th class="num">Total</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <h4>By date</h4>
+            <div class="table-wrap printable">
+              <table class="data-table" id="ordersDateTable">
+                <thead><tr><th>Date</th><th class="num">Orders</th><th class="num">Total</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ Inventory ============ -->
+      <section class="card report-section" id="report-inventory" data-section="inventory" hidden>
+        <header class="report-head print-header"><h3>Inventory Report</h3></header>
+        <div class="report-summary" id="inventorySummary"></div>
+        <div class="table-wrap printable">
+          <table class="data-table" id="inventoryTable">
+            <thead class="print-thead"><tr>
+              <th>Name</th><th>Category</th><th class="num">Stock</th><th class="num">Min</th>
+              <th class="num">Cost/unit</th><th>Status</th><th class="num">Value</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ Purchases ============ -->
+      <section class="card report-section" id="report-purchases" data-section="purchases" hidden>
+        <header class="report-head print-header"><h3>Purchases Report</h3></header>
+        <div class="report-summary" id="purchasesSummary"></div>
+        <div class="table-wrap printable">
+          <table class="data-table" id="purchasesTable">
+            <thead class="print-thead"><tr><th>Group</th><th class="num">Purchases</th><th class="num">Total</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ Salaries ============ -->
+      <section class="card report-section" id="report-salaries" data-section="salaries" hidden>
+        <header class="report-head print-header"><h3>Salaries Report</h3></header>
+        <div class="report-summary" id="salariesSummary"></div>
+        <div class="table-wrap printable">
+          <table class="data-table" id="salariesTable">
+            <thead class="print-thead"><tr><th>Month</th><th class="num">Records</th><th class="num">Total paid</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ Expenses ============ -->
+      <section class="card report-section" id="report-expenses" data-section="expenses" hidden>
+        <header class="report-head print-header"><h3>Expenses Report</h3></header>
+        <div class="report-summary" id="expensesSummary"></div>
+        <div class="table-wrap printable">
+          <table class="data-table" id="expensesTable">
+            <thead class="print-thead"><tr><th>Group</th><th class="num">Entries</th><th class="num">Total</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ Profit ============ -->
+      <section class="card report-section" id="report-profit" data-section="profit" hidden>
+        <header class="report-head print-header"><h3>Estimated Profit</h3></header>
+        <div class="profit-note">
+          <strong>Estimated management summary.</strong>
+          Sales − Purchases − Salaries − Expenses. Salary matching is by month,
+          so this is an approximation, not an exact ledger balance.
+        </div>
+        <div class="profit-grid" id="profitGrid"></div>
       </section>
     </div>
   </main>
+
   <script src="/static/js/api.js"></script>
   <script src="/static/js/common.js"></script>
+  <script src="/static/js/reports.js"></script>
 </body>
 </html>

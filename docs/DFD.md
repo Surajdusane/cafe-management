@@ -12,7 +12,7 @@ The whole system is a single process interacting with external entities.
                     │   Cafe staff       │
                     └─────────┬──────────┘
              settings,        │                menus, lists,
-             category & item  ▼                reports (future)
+             category & item  ▼                reports
               data  ┌───────────────────────┐
         ┌──────────▶│                       │──────────┐
         │           │   CAFE MANAGEMENT     │          ▼
@@ -21,18 +21,18 @@ The whole system is a single process interacting with external entities.
    confirmations &  │                       │   │ (Phase 5+) │
    error messages   └───────────┬───────────┘   └────────────┘
                         ▲        │        ▲
-             stock &    │        │        │     purchases,
+stock &    │        │        │     purchases,
              supplier   │        ▼        │     salaries, expenses
-             data       │   data/cafe.db  │     data (Phases 6–13)
-                        │   (SQLite file) │
-                        └── stored data ──┘
+             data       │   data/cafe.db  │     data (Phases 6–14)
+                         │   (SQLite file) │
+                         └── stored data ──┘
 ```
 
 **External entities (current):**
-* **Admin/Cafe staff** — enters and manages cafe settings, menu categories and menu items, orders and payments, suppliers, stock movements and supplier purchases through the browser.
+* **Admin/Cafe staff** — enters and manages cafe settings, menu categories and menu items, orders and payments, suppliers, stock movements, supplier purchases, employees, salaries and expenses through the browser; reads the pre-built reports.
 * **Customer** — receives a shareable digital menu link (fully wired in Phase 5).
 
-**Data stores (current):** `data/cafe.db` holding `cafe_settings`, `categories`, `menu_items`, `orders`, `order_items`, `suppliers`, `inventory_items`, `inventory_transactions`, `purchases`, `purchase_items`.
+**Data stores (current):** `data/cafe.db` holding `cafe_settings`, `categories`, `menu_items`, `orders`, `order_items`, `suppliers`, `inventory_items`, `inventory_transactions`, `purchases`, `purchase_items`, `employees`, `salaries`, `expenses`.
 
 ## Level-1 DFD
 
@@ -128,8 +128,36 @@ Admin/Staff
             └──▶ D7 inventory_items (+qty) with a "Stock In" row in D8 per line
             ▲ failed validation rolls everything back — stock never half-updates
             │
-Planned (not yet implemented):
-P9 Employees & Salaries (Phases 11–12), P10 Expenses (Phase 13), Reports (Phase 14)
+Admin/Staff
+    │ employee: name, mobile, role, salary type/rate | salary: month, bonus, deduction
+    ▼
+┌───────────────────────────┐  role/salary-type in fixed list?  ┌──────────────────────────┐
+│ P9  Manage Employees &    │  unique month per employee (409)? │ D11 employees             │
+│     Salaries              │──────────────────────────────────▶│                          │
+│     routers/employees.py, │◀──────── rows + salary counts ────│ D12 salaries             │
+│     routers/salaries.py   │  net = base + bonus − deduction   │                          │
+└───────────┬───────────────┘  (server-calculated)              └──────────────────────────┘
+            │ salary_count per employee; delete blocked (409) while salaries exist
+            │
+Admin/Staff
+    │ expense: title, category, amount, date, payment method, notes
+    ▼
+┌───────────────────────────┐  category/method in fixed list?   ┌──────────────────────────┐
+│ P10 Record Expenses       │  amount > 0?                      │ D13 expenses             │
+│     routers/expenses.py   │──────────────────────────────────▶│ id, title, category,     │
+└───────────┬───────────────┘◀──────── newest first + summary ──│ amount, expense_date,    │
+            │                                                   │ payment_method, notes    │
+            │
+Admin/Staff
+    │ tab + date range + mode (daily/weekly/monthly, by supplier/category…)
+    ▼
+┌───────────────────────────┐  read-only aggregations over recorded data ──────────────────┐
+│ P11 Generate Reports      │  Sales (paid orders) · Orders · Inventory · Purchases ·      │
+│     routers/reports.py    │  Salaries · Expenses · Estimated Profit                      │
+└───────────────────────────┘  ───────────────────────────────────────────────────────────┘
+            │ no writes — every figure recomputed live from D1, D4–D13
+            ▼
+     Summary cards + tables + bar chart (static/js/reports.js, printable)
 ```
 
 ### Data dictionary of flows
@@ -163,7 +191,17 @@ P9 Employees & Salaries (Phases 11–12), P10 Expenses (Phase 13), Reports (Phas
 | Calculated purchase totals    | P8 → D9/D10/Browser  | line_total = qty × cost; subtotal = total = Σ lines (server-computed) |
 | Automatic stock update        | P8 → D7/D8           | +quantity per material + "Stock In" history row noting `Purchase PUR-xxxx` — same transaction as the header |
 | Purchase history & filters    | P8 → Browser         | rows newest first; search by number/supplier, supplier, payment status, date range; summary totals |
+| Employee payload              | Staff → P9           | name, mobile, email, address, role, joining_date, salary_type, base_salary, is_active |
+| Salary payload                | Staff → P9           | employee_id, salary_month, base_salary?, bonus, deduction, payment_status, payment_date?, notes |
+| Salary validation & net       | P9 → D11/D12/Browser | role/salary-type allowlists, 10-digit mobile, 409 duplicate month; net = base + bonus − deduction (server) |
+| Salary list & filters         | P9 → Browser         | newest month first; filter by employee, month, payment status; stat-card totals |
+| Employee delete guard         | P9 → Browser         | HTTP 409 while salary records exist                            |
+| Expense payload               | Staff → P10          | title, category, amount, expense_date?, payment_method, notes  |
+| Expense validation            | P10 → Browser        | 422 category/method not in allowlist, amount ≤ 0, overlong fields |
+| Expense list & filters        | P10 → Browser        | newest first; search + category/method/date filters; summary totals (count, total, categories) |
+| Report request                | Staff → P11          | report tab + date range + mode (period / report_type / group_by) |
+| Report data                   | P11 → Browser        | read-only series/tables: sales, orders, inventory, purchases, salaries, expenses, estimated profit |
 
 ---
-*Last updated: Phase 10 completion (Purchase recording process added).*
-*Previous: Phase 8–9 completion (Supplier and Inventory processes added).*
+*Last updated: Phase 13–14 completion (Expense recording and read-only Report processes added).*
+*Previous: Phase 10 completion (Purchase recording process added). Employees & Salaries moved from planned to implemented in this update.*

@@ -297,11 +297,39 @@ One salary payment for one employee for one month. Net salary is calculated once
 
 **Relationships:** belongs to exactly one `Employee`. The pair `(employee_id, salary_month)` is unique — one record per employee per month (duplicate attempts return HTTP 409).
 
+### Expense (Phase 13)
+
+One recorded cafe running cost (electricity, rent, maintenance…). It is a **standalone** entity — a dated money outflow with no foreign keys — so it can always be deleted without breaking any other record. Amount and date are frozen at entry time; later edits are full replacements via PUT.
+
+```text
+┌──────────────────────────────────────────────┐
+│                    Expense                    │
+├──────────────────────────────────────────────┤
+│ PK  id             INTEGER     AUTOINCREMENT  │
+│     title          VARCHAR(120) NOT NULL      │
+│                  (duplicates allowed)         │
+│     category       VARCHAR(40)  NOT NULL      │
+│         values: Electricity | Gas | Rent |    │
+│                 Maintenance | Cleaning |      │
+│                 Internet | Miscellaneous      │
+│     amount         FLOAT       NOT NULL (> 0, │
+│                                  rounded 2 dp)│
+│     expense_date   DATE        NOT NULL       │
+│                  (defaults to today)          │
+│     payment_method VARCHAR(10) NOT NULL       │
+│         values: Cash | UPI | Card | Other     │
+│                  (default "Cash")             │
+│     notes          VARCHAR(255)               │
+│     created_at     DATETIME    NOT NULL       │
+│     updated_at     DATETIME                   │
+└──────────────────────────────────────────────┘
+```
+
+**Relationships:** none. Expense is standalone; the Reports module (Phase 14) reads it read-only for the Expense and Estimated Profit views.
+
 ## Planned Entities (not yet created)
 
-| Entity               | Relationship to existing entities           | Phase |
-| -------------------- | ------------------------------------------- | ----- |
-| Expense              | standalone                                  | 13    |
+None — every entity designed so far exists in the SQLite database. (Phase 15 Live Dashboard and later phases introduce no new tables; they simply aggregate the existing ones.)
 
 ## Cardinality Summary (current database)
 
@@ -316,6 +344,7 @@ Supplier             1 ──── N  Purchase        purchases.supplier_id →
 Purchase             1 ──── N  PurchaseItem    purchase_items.purchase_id → purchases.id (CASCADE)
 InventoryItem        1 ──── N  PurchaseItem    purchase_items.inventory_item_id → inventory_items.id (SET NULL)
 Employee             1 ──── N  Salary          salaries.employee_id → employees.id (RESTRICT + API guard)
+Expense                — standalone	no FKs; read-only by Reports (Phase 14)
 ```
 
 ## Business Rules enforced around Orders
@@ -361,6 +390,15 @@ Employee             1 ──── N  Salary          salaries.employee_id → 
 * Saving a record as `Paid` without an explicit payment date stamps today's date automatically.
 * An employee with existing salary records cannot be deleted (HTTP 409); delete their salary history first.
 
+## Business Rules enforced around Expenses
+
+* `category` must be one of Electricity / Gas / Rent / Maintenance / Cleaning / Internet / Miscellaneous; `payment_method` one of Cash / UPI / Card / Other — both enforced by Pydantic (HTTP 422 otherwise).
+* `amount` must be greater than zero (≤ 99,999,999) and is rounded to 2 decimals; boolean and non-numeric values are rejected.
+* `expense_date` is required by the schema but defaults to today in the service when omitted; `payment_method` defaults to Cash.
+* Expense titles are required (1–120 chars) but **may repeat** — there is deliberately no uniqueness rule (e.g. two electricity bills).
+* Notes are trimmed; an empty string is stored as NULL.
+* There are no foreign keys, so any expense can be deleted without affecting other records.
+
 ---
-*Last updated: Phase 11–12 completion (Employee + Salary entities added).*
-*Previous: Phase 10 completion (Purchase + PurchaseItem entities added).*
+*Last updated: Phase 13–14 completion (Expense entity added; Reports aggregate existing entities read-only).*
+*Previous: Phase 11–12 completion (Employee + Salary entities added).*

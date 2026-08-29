@@ -44,12 +44,16 @@ def test_metadata_registers_implemented_tables():
         "purchase_items",
         "employees",
         "salaries",
+        "expenses",
     }.issubset(registered)
 
 
-def test_metadata_has_no_future_domain_tables_yet():
-    future_tables = {
-        "expenses",
+def test_metadata_has_no_unexpected_domain_tables():
+    unexpected_tables = {
+        "pytorch_models",  # placeholders to catch accidental schema creep
+        "payments",
+        "invoices",
+        "recipes",
     }
 
-    assert not future_tables.intersection(Base.metadata.tables.keys())
+    assert not unexpected_tables.intersection(Base.metadata.tables.keys())

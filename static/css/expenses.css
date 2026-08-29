@@ -1,0 +1,13 @@
+/* Expenses page (Phase 13) — small extras on top of the shared menu.css components */
+
+.toolbar input[type="date"] {
+  width: auto;
+  min-width: 140px;
+}
+
+.toolbar .search-input { flex: 0 1 240px; min-width: 180px; width: auto; }
+
+@media (max-width: 700px) {
+  .toolbar input[type="date"] { flex: 1 1 45%; }
+  .toolbar .search-input { flex: 1 1 100%; }
+}

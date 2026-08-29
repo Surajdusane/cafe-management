@@ -702,6 +702,307 @@ Marks a purchase paid or reverts it to unpaid.
 
 **Response 200** — updated purchase. **Responses:** 200 · 404 unknown purchase · 422 invalid status value.
 
+### GET /api/employees
+
+Lists employees ordered by name, each with a live `salary_count` (number of salary records).
+
+| Query parameter    | Type   | Default | Notes                                        |
+| ------------------ | ------ | ------- | -------------------------------------------- |
+| `search`           | string | –       | matches name / mobile / email / role         |
+| `role`             | string | –       | Manager / Cashier / Chef / Waiter / Helper / Cleaner (any other value → 422) |
+| `include_inactive` | bool   | `true`  | set `false` for active only                  |
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": 1,
+        "name": "Priya Sharma",
+        "mobile": "9876543210",
+        "email": "priya@cafe.in",
+        "address": "21 Station Road, Pune",
+        "role": "Chef",
+        "joining_date": "2025-06-01",
+        "salary_type": "Monthly",
+        "base_salary": 25000.0,
+        "is_active": true,
+        "salary_count": 2,
+        "created_at": "2026-08-23T18:00:00",
+        "updated_at": null
+      }
+    ],
+    "count": 1
+  }
+}
+```
+
+### POST /api/employees
+
+Creates an employee. Validation: `name` required 1–100 chars; `mobile` must match the 10-digit Indian mobile pattern; `email` when given must be a valid format (stored lowercase); `role` one of Manager / Cashier / Chef / Waiter / Helper / Cleaner; `joining_date` cannot be in the future; `salary_type` one of Monthly / Daily / Hourly; `base_salary` ≥ 0 rounded to 2 decimals (booleans rejected); `is_active` defaults `true`. Strings are trimmed and empty optionals stored as `null`.
+
+**Responses:** 201 created · 422 validation failure. Message: "Employee created."
+
+### GET /api/employees/{employee_id}
+
+Returns one employee. **Response 404** if missing.
+
+### PUT /api/employees/{employee_id}
+
+Full replace using the same body rules as create. **Responses:** 200 · 404 · 422.
+
+### DELETE /api/employees/{employee_id}
+
+Deletes the employee. **Response 409** while salary records exist ("Delete their salary history first") so payment history can never disappear silently. **Response 404** if missing.
+
+### GET /api/salaries
+
+Salary history ordered newest month first, each row embedding a brief `employee` summary.
+
+| Query parameter  | Type   | Default | Notes                                     |
+| ---------------- | ------ | ------- | ----------------------------------------- |
+| `employee_id`    | int    | –       | > 0, filter to one employee               |
+| `month`          | string | –       | `YYYY-MM` (pattern enforced, else 422)    |
+| `payment_status` | string | –       | Paid / Unpaid                             |
+
+### POST /api/salaries
+
+Creates one salary record. The net salary is **always calculated by the server**: `net = base + bonus − deduction`. If `base_salary` is omitted the employee's current base salary is copied in at save time.
+
+| Field            | Type          | Required | Rules                                                            |
+| ---------------- | ------------- | -------- | ---------------------------------------------------------------- |
+| `employee_id`    | int           | yes      | > 0; must exist (**404** otherwise)                              |
+| `salary_month`   | string        | yes      | `YYYY-MM` format, year 2000–2100                                 |
+| `base_salary`    | number / null | no       | ≥ 0, ≤ 99,999,999; falls back to the employee's current base     |
+| `bonus`          | number        | no       | ≥ 0, default 0, rounded to 2 dp                                  |
+| `deduction`      | number        | no       | ≥ 0, default 0, ≤ base + bonus (net can never be negative → 422) |
+| `payment_status` | string        | no       | `"Paid"` / `"Unpaid"`, default `"Unpaid"`                        |
+| `payment_date`   | date / null   | no       | defaults to today when marked Paid without a date                |
+| `notes`          | string / null | no       | ≤ 255 chars, trimmed                                             |
+
+**Responses:** 201 created · 404 unknown employee · 409 one record per employee per month already exists · 422 validation failure. Message: "Salary record created."
+
+### GET /api/salaries/{salary_id}
+
+Returns one salary record with its `employee` summary. **Response 404** if missing.
+
+### PUT /api/salaries/{salary_id}
+
+Full replace with the same body rules as create; the net salary is recalculated server-side and the duplicate-month check excludes the record itself. **Responses:** 200 · 404 · 409 · 422.
+
+### DELETE /api/salaries/{salary_id}
+
+Deletes the salary record (frees the employee for deletion). **Responses:** 200 "Salary record deleted." · 404.
+
+### GET /api/expenses/options
+
+Fixed choice lists so the UI never hard-codes them.
+
+```json
+{
+  "success": true,
+  "data": {
+    "categories": ["Electricity", "Gas", "Rent", "Maintenance", "Cleaning", "Internet", "Miscellaneous"],
+    "payment_methods": ["Cash", "UPI", "Card", "Other"]
+  }
+}
+```
+
+### GET /api/expenses
+
+Expense history ordered newest first (by `expense_date`, then id), with a `summary` block for the page's stat cards.
+
+| Query parameter   | Type   | Default | Notes                                    |
+| ----------------- | ------ | ------- | ---------------------------------------- |
+| `search`          | string | –       | matches title or notes                   |
+| `category`        | string | –       | exact category match                     |
+| `payment_method`  | string | –       | Cash / UPI / Card / Other                |
+| `start_date`      | date   | –       | ISO `YYYY-MM-DD`, inclusive lower bound  |
+| `end_date`        | date   | –       | ISO `YYYY-MM-DD`, inclusive upper bound  |
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": 3,
+        "title": "March electricity bill",
+        "category": "Electricity",
+        "amount": 2500.0,
+        "expense_date": "2026-08-20",
+        "payment_method": "Cash",
+        "notes": "Bill no. 8841",
+        "created_at": "2026-08-23T18:00:00",
+        "updated_at": null
+      }
+    ],
+    "count": 1,
+    "summary": { "count": 1, "total_amount": 2500.0, "categories": 1 }
+  }
+}
+```
+
+Invalid date values return 422 automatically.
+
+### POST /api/expenses
+
+Creates an expense. Validation: `title` required 1–120 chars (**may repeat** — duplicates are allowed deliberately); `category` must be one of Electricity / Gas / Rent / Maintenance / Cleaning / Internet / Miscellaneous; `amount` > 0 (≤ 99,999,999), rounded to 2 decimals, booleans rejected; `expense_date` optional (defaults to today); `payment_method` one of Cash / UPI / Card / Other (default Cash); `notes` ≤ 255, trimmed.
+
+**Response 201** — created expense. **Response 422** — validation failure. Message: "Expense recorded."
+
+### GET /api/expenses/{expense_id}
+
+Returns one expense. **Response 404** if missing.
+
+### PUT /api/expenses/{expense_id}
+
+Full replace with the same body rules as create. **Responses:** 200 · 404 · 422.
+
+### DELETE /api/expenses/{expense_id}
+
+Deletes the expense (always allowed — an expense carries no foreign keys). **Responses:** 200 "Expense deleted." · 404.
+
+### GET /api/reports/sales
+
+Series of **paid-order** sales bucketed by period. Every figure is recomputed live from the database — reports are read-only.
+
+| Query parameter | Type   | Default   | Notes                                                        |
+| --------------- | ------ | --------- | ------------------------------------------------------------ |
+| `period`        | string | `daily`   | `daily` \| `weekly` \| `monthly` (else 422)                  |
+| `start_date`    | date   | –         | ISO `YYYY-MM-DD`; absent → last 14 days (daily) / last 7 days (weekly) |
+| `end_date`      | date   | –         | ISO `YYYY-MM-DD`, inclusive                                 |
+
+```json
+{
+  "success": true,
+  "data": {
+    "period": "monthly",
+    "period_label": "Monthly",
+    "start_date": null,
+    "end_date": null,
+    "summary": { "sales_total": 252.0, "orders": 1, "avg_order": 252.0 },
+    "series": { "labels": ["Aug 26"], "amounts": [252.0], "orders": [1] }
+  }
+}
+```
+
+`daily` renders one point per calendar day in the selected range; `weekly` is a rolling last-7-day daily view; `monthly` buckets orders into `YYYY-MM` labels.
+
+### GET /api/reports/orders
+
+Order breakdown by status and by date within the date range (defaults to the last 14 days when dates are absent).
+
+| Query parameter | Type   | Default | Notes                                       |
+| --------------- | ------ | ------- | ------------------------------------------- |
+| `start_date`    | date   | –       | ISO `YYYY-MM-DD`, inclusive lower bound     |
+| `end_date`      | date   | –       | ISO `YYYY-MM-DD`, inclusive upper bound     |
+
+```json
+{
+  "success": true,
+  "data": {
+    "start_date": "2026-08-10",
+    "end_date": "2026-08-23",
+    "summary": { "count": 3, "total": 706.0 },
+    "by_status": [
+      { "status": "Pending", "count": 1, "total": 250.0 },
+      { "status": "Completed", "count": 2, "total": 456.0 }
+    ],
+    "by_date": [
+      { "date": "2026-08-23", "label": "23 Aug", "count": 3, "total": 706.0 }
+    ]
+  }
+}
+```
+
+### GET /api/reports/inventory
+
+| Query parameter | Type   | Default   | Notes                                                        |
+| --------------- | ------ | --------- | ------------------------------------------------------------ |
+| `report_type`   | string | `current` | `current` \| `low` \| `movements` (else 422)                 |
+
+`current` lists active materials with stock, minimum, cost and a computed low-stock flag; `low` lists only materials at or below their minimum; `movements` returns the latest 300 `inventory_transactions` rows (item name, type, quantity, balance after, note, timestamp) newest first.
+
+```json
+{
+  "success": true,
+  "data": {
+    "report_type": "current",
+    "summary": { "active_items": 3, "low_stock": 1, "total_value": 1120.0 },
+    "items": [
+      {
+        "id": 1, "name": "Milk", "category": "Dairy", "unit": "Litre",
+        "current_quantity": 2.0, "minimum_stock": 3.0, "purchase_price": 56.0,
+        "is_low_stock": true, "is_active": true
+      }
+    ]
+  }
+}
+```
+
+### GET /api/reports/purchases
+
+Purchase totals grouped by supplier or by date, date-filtered.
+
+| Query parameter | Type   | Default    | Notes                                          |
+| --------------- | ------ | ---------- | ---------------------------------------------- |
+| `group_by`      | string | `date`     | `supplier` \| `date` (else 422)                |
+| `start_date`    | date   | –          | ISO `YYYY-MM-DD`, inclusive lower bound        |
+| `end_date`      | date   | –          | ISO `YYYY-MM-DD`, inclusive upper bound        |
+
+Response `data`: `group_by`, `start_date`, `end_date`, `summary { count, total }` and `items[]` — grouped rows with `name` (supplier) or `date`/`label` (day) plus `count` and `total`.
+
+### GET /api/reports/salaries
+
+Monthly salary expense across the whole history (no filters). Response `data`:
+
+```json
+{
+  "summary": { "total": 52400.0, "records": 4 },
+  "items": [
+    { "month": "2026-08", "count": 2, "total": 26200.0 }
+  ]
+}
+```
+
+Newest month first. `total` uses the recorded `net_salary`.
+
+### GET /api/reports/expenses
+
+Expense totals grouped by category or by date, date-filtered.
+
+| Query parameter | Type   | Default      | Notes                                 |
+| --------------- | ------ | ------------ | ------------------------------------- |
+| `group_by`      | string | `category`   | `category` \| `date` (else 422)       |
+| `start_date`    | date   | –            | ISO `YYYY-MM-DD`, inclusive           |
+| `end_date`      | date   | –            | ISO `YYYY-MM-DD`, inclusive           |
+
+Response `data`: `group_by`, `start_date`, `end_date`, `summary { count, total }` and `items[]` — grouped rows with `category` or `date`/`label` plus `count` and `total`, categories sorted highest total first.
+
+### GET /api/reports/profit
+
+Estimated profit summary: **Sales − Purchases − Salaries − Expenses**, each component returned so the client never has to trust a stored number. The figure is explicitly labelled an estimate because salaries are matched by month, not by an exact day.
+
+| Query parameter | Type   | Default | Notes                                      |
+| --------------- | ------ | ------- | ------------------------------------------ |
+| `start_date`    | date   | –       | ISO `YYYY-MM-DD`, inclusive lower bound    |
+| `end_date`      | date   | –       | ISO `YYYY-MM-DD`, inclusive upper bound    |
+
+```json
+{
+  "success": true,
+  "data": {
+    "start_date": null,
+    "end_date": null,
+    "components": { "sales": 252.0, "purchases": 0.0, "salaries": 0.0, "expenses": 2500.0 },
+    "estimated_profit": -2248.0,
+    "labelled_note": "Estimated management summary — salaries are matched by month, not by an exact day."
+  }
+}
+```
+
 ## Error Handling
 
 | Status | Cause                              | Body                                  |
@@ -739,8 +1040,8 @@ The public page loads only `public-menu.css`, `api.js` and `public-menu.js`; the
 
 Everything under `static/` is served at `/static/...`.
 
-- `/static/css/main.css`, `/static/css/dashboard.css`, `/static/css/menu.css`, `/static/css/orders.css`, `/static/css/inventory.css`, `/static/css/purchases.css`, `/static/css/responsive.css`, `/static/css/public-menu.css`
-- `/static/js/api.js`, `/static/js/common.js`, `/static/js/validation.js`, `/static/js/dashboard.js`, `/static/js/categories.js`, `/static/js/menu-items.js`, `/static/js/orders.js`, `/static/js/billing.js`, `/static/js/suppliers.js`, `/static/js/inventory.js`, `/static/js/purchases.js`, `/static/js/settings.js`, `/static/js/customer-menu.js`, `/static/js/public-menu.js`
+- `/static/css/main.css`, `/static/css/dashboard.css`, `/static/css/menu.css`, `/static/css/orders.css`, `/static/css/inventory.css`, `/static/css/purchases.css`, `/static/css/expenses.css`, `/static/css/reports.css`, `/static/css/responsive.css`, `/static/css/public-menu.css`
+- `/static/js/api.js`, `/static/js/common.js`, `/static/js/validation.js`, `/static/js/dashboard.js`, `/static/js/categories.js`, `/static/js/menu-items.js`, `/static/js/orders.js`, `/static/js/billing.js`, `/static/js/suppliers.js`, `/static/js/inventory.js`, `/static/js/purchases.js`, `/static/js/employees.js`, `/static/js/salaries.js`, `/static/js/expenses.js`, `/static/js/reports.js`, `/static/js/settings.js`, `/static/js/customer-menu.js`, `/static/js/public-menu.js`
 - `/static/images/favicon.svg`
 
 ## Frontend API Utility
@@ -757,5 +1058,5 @@ API.delete("/api/items/1")
 It parses the envelope, throws `ApiError(message, status, errors)` on failure and maps network failures to a friendly message. Toast notifications are provided by `UI.toast(message, type)` in `common.js`. The public menu page reuses `api.js` but not `common.js`.
 
 ---
-*Last updated: Phase 10 completion (Purchases endpoints).*
-*Previous: Phase 8–9 completion (Suppliers and Inventory endpoints). Categories and menu-item endpoints documented together with their phases (3–4).*
+*Last updated: Phase 13–14 completion (Employees, Salaries, Expenses and Reports endpoints added).*
+*Previous: Phase 10 completion (Purchases endpoints). Suppliers and Inventory endpoints documented together with their phases (8–9).*

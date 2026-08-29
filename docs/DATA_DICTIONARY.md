@@ -2,9 +2,9 @@
 
 This document lists every table that exists in the SQLite database (`data/cafe.db`), with field-level detail. It is updated after each phase.
 
-## Current Status (Phase 11–12 — Employees & Salaries)
+## Current Status (Phase 13–14 — Expenses & Reports)
 
-**Domain tables created so far: 12.** Phase 11 added `employees` (staff master with role, joining date and salary type). Phase 12 added `salaries` (monthly salary payments with server-calculated net salary, one record per employee per month).
+**Domain tables created so far: 13.** Phase 11 added `employees` (staff master with role, joining date and salary type). Phase 12 added `salaries` (monthly salary payments with server-calculated net salary, one record per employee per month). Phase 13 added `expenses` (standalone operating-cost records with a fixed category list and payment method). Reports (Phase 14) are read-only aggregations and add no new tables.
 
 | Table                   | Purpose                                       | Phase |
 | ----------------------- | --------------------------------------------- | ----- |
@@ -20,6 +20,7 @@ This document lists every table that exists in the SQLite database (`data/cafe.d
 | purchase_items          | Purchased material lines                      | 10    |
 | employees               | Employee master records                       | 11    |
 | salaries                | Monthly salary payments                       | 12    |
+| expenses                | Operating expense records                     | 13    |
 
 ## Table: cafe_settings
 
@@ -250,12 +251,28 @@ One row per salary payment for one employee for one month. Net salary is calcula
 
 **Constraints & rules:** UNIQUE on `(employee_id, salary_month)` — one record per employee per month (the API returns HTTP 409 on duplicates); unknown employees are refused with HTTP 404; if `base_salary` is omitted it copies the employee's current base salary at save time.
 
+## Table: expenses
+
+One row per recorded cafe running cost (electricity, rent, maintenance…). The expense is a standalone dated money outflow with no foreign keys, so it can always be deleted without breaking other records. Amount and date are frozen at entry time; later edits are full replacements via PUT. Created in Phase 13.
+
+| Field Name     | Data Type    | Description                                                    | Primary Key | Foreign Key | Nullable | Example                    |
+| -------------- | ------------ | -------------------------------------------------------------- | ----------- | ----------- | -------- | -------------------------- |
+| id             | INTEGER      | Auto-increment identifier                                      | Yes         | No          | No       | 1                          |
+| title          | VARCHAR(120) | Short heading for the expense; duplicates allowed deliberately | No          | No          | No       | March electricity bill     |
+| category       | VARCHAR(40)  | Electricity / Gas / Rent / Maintenance / Cleaning / Internet / Miscellaneous | No | No | No | Electricity      |
+| amount         | FLOAT        | Money spent; must be > 0, rounded to 2 dp                      | No          | No          | No       | 2500.0                     |
+| expense_date   | DATE         | Day the cost was paid; defaults to today when omitted          | No          | No          | No       | 2026-08-20                 |
+| payment_method | VARCHAR(10)  | Cash / UPI / Card / Other; defaults to Cash                    | No          | No          | No       | UPI                        |
+| notes          | VARCHAR(255) | Free-text remark (bill number, reference…)                     | No          | No          | Yes      | Bill no. 8841              |
+| created_at     | DATETIME     | Row creation timestamp (auto)                                  | No          | No          | No       | 2026-08-23 18:00:00        |
+| updated_at     | DATETIME     | Last change timestamp (auto)                                   | No          | No          | Yes      | 2026-08-23 18:05:12        |
+
+**Constraints & rules:** `category` must be one of Electricity, Gas, Rent, Maintenance, Cleaning, Internet, Miscellaneous; `payment_method` one of Cash, UPI, Card, Other (both enforced by Pydantic, HTTP 422 otherwise). `amount` must be > 0 (booleans rejected) and is rounded to 2 dp. `expense_date` is required by the schema but defaults to today in the service when omitted; `title` is required (1–120 chars) and there is deliberately **no** uniqueness rule — two electricity bills, for example, may share a title. Notes are trimmed and an empty string is stored as NULL. Deletion is always allowed because an expense row carries no foreign keys — it simply records a dated money outflow.
+
 ## Planned Tables (not yet created)
 
-| Table                  | Purpose                                   | Phase |
-| ---------------------- | ----------------------------------------- | ----- |
-| expenses               | Operating expenses                        | 13    |
+None — every domain table designed so far exists in the database.
 
 ---
-*Last updated: Phase 11–12 completion (employees + salaries added).*
-*Previous: Phase 10 completion (purchases + purchase_items added).*
+*Last updated: Phase 13–14 completion (expenses added; reports introduce no new tables).*
+*Previous: Phase 11–12 completion (employees + salaries added).*

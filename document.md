@@ -16,6 +16,7 @@ A final-year project documentation for a web-based Cafe Management System develo
 | 1.5     | 2026-08-23 | Phases 6–7 Orders & Billing implemented (orders CRUD + workflow, server-calculated bills, payments, printable receipt) |
 | 1.6     | 2026-08-23 | Phases 8–9 Suppliers & Inventory implemented (supplier CRUD, raw materials with units/min stock/supplier link, atomic Stock In/Out/Adjustment movements with history and low-stock warnings) |
 | 1.7     | 2026-08-23 | Phase 10 Purchase Management implemented (multi-item purchases with server-calculated totals, automatic inventory update in one transaction, purchase history with search/date/supplier/payment filters) |
+| 1.8     | 2026-08-29 | Phases 11–14 Employees, Salaries, Expenses & Reports implemented (employee CRUD with salary-delete guard; monthly salary records with server-calculated net salary; expense recording with category/payment-method allowlists and filters; report module with seven tabs — sales, orders, inventory, purchases, salaries, expenses and estimated profit) |
 
 ---
 
@@ -55,7 +56,7 @@ In the present system the cafe typically works with:
 
 The proposed Cafe Management System is a local web application running on the cafe's computer. Staff manage menu, orders, billing, inventory, suppliers, employees, salaries and expenses through a browser interface backed by a FastAPI server and a single-file SQLite database.
 
-Development follows 17 phases (see Development Phases). Phases 1–9 are complete: Foundation, Cafe Settings, Categories, Menu Items, the Customer Digital Menu, Orders, Billing, Suppliers and Inventory.
+Development follows 17 phases (see Development Phases). Phases 1–14 are complete: Foundation, Cafe Settings, Categories, Menu Items, the Customer Digital Menu, Orders, Billing, Suppliers, Inventory, Purchases, Employees, Salaries, Expenses and Reports. The live dashboard (Phase 15) and the final documentation pass remain.
 
 ### Scope of Proposed System
 
@@ -98,10 +99,10 @@ Development follows 17 phases (see Development Phases). Phases 1–9 are complet
 | 12 | Supplier CRUD with search and material counts       | Implemented       |
 | 13 | Inventory with stock movements and low-stock alert  | Implemented       |
 | 14 | Purchases updating inventory automatically          | Implemented       |
-| 15 | Employee CRUD                                       | Planned (Phase 11)|
-| 16 | Salary runs (base + bonus − deduction)              | Planned (Phase 12)|
-| 17 | Expense recording                                   | Planned (Phase 13)|
-| 18 | Reports and estimated profit summary                | Planned (Phase 14)|
+| 15 | Employee CRUD                                       | Implemented       |
+| 16 | Salary runs (base + bonus − deduction)              | Implemented       |
+| 17 | Expense recording                                   | Implemented       |
+| 18 | Reports and estimated profit summary                | Implemented       |
 | 19 | Live dashboard statistics                           | Planned (Phase 15)|
 
 ### Non-Functional Requirements
@@ -141,7 +142,7 @@ Design artefacts are maintained in the `docs/` folder:
 * `docs/DATA_DICTIONARY.md` — field-level dictionary per table
 * `docs/API_DOCUMENTATION.md` — endpoint reference
 
-### Current Architecture (Phases 2–10)
+### Current Architecture (Phases 2–14)
 
 ```text
 Browser (HTML/CSS/JS)
@@ -163,6 +164,14 @@ FastAPI application (app/main.py)
     |                            -> routers/inventory.py -> inventory_service
     |-- /api/purchases (record/list/detail/payment-status)
     |                            -> routers/purchases.py -> purchase_service
+    |-- /api/employees (list/create/detail/update/delete + search/role filters)
+    |                            -> routers/employees.py -> employee_service
+    |-- /api/salaries (list/create/detail/update/delete + employee/month/status filters)
+    |                            -> routers/salaries.py -> salary_service
+    |-- /api/expenses (list/create/detail/update/delete + /options + filters)
+    |                            -> routers/expenses.py -> expense_service
+    |-- /api/reports (sales/orders/inventory/purchases/salaries/expenses/profit — all GET)
+    |                            -> routers/reports.py -> report_service
     `-- Error handlers -> unified JSON envelope (400/404/409/422/500)
     v
 SQLAlchemy models (app/models) -> data/cafe.db (SQLite, PRAGMA foreign_keys=ON)
@@ -182,6 +191,12 @@ Inventory data model (Phase 9): `InventoryItem 1:N InventoryTransaction` (ORM ca
 
 Purchase data model (Phase 10): `Purchase 1:N PurchaseItem` (`purchase_items.purchase_id`, cascade). The purchase number (`PUR-0001`, derived from the primary key) identifies it on screens; `supplier_name`, `item_name` and `unit` are snapshotted so history stays readable after renames or deletions (`purchases.supplier_id` and `purchase_items.inventory_item_id` are both `ON DELETE SET NULL`). Money formula — calculated exclusively server-side: `line_total = quantity × unit_cost` on rounded inputs; `subtotal = total = Σ line totals`. Recording a purchase is ONE logical database operation: header, lines, a guarded SQL quantity increase per material and one "Stock In" movement row per line all commit together, so a failed purchase never leaves stock half-updated. Purchases are record-only ledger entries — no edit or delete — which keeps the audit trail intact.
 
+Employee/Salary data model (Phases 11–12): `Employee 1:N Salary` (`salaries.employee_id`, `ON DELETE RESTRICT`). `base_salary` on the employee is only a reference value interpreted by `salary_type` (Monthly/Daily/Hourly); each `Salary` row snapshots the base salary actually used and stores a server-calculated `net_salary = base + bonus − deduction` so later edits to an employee never rewrite history. The pair `(employee_id, salary_month)` is UNIQUE — one record per employee per month, duplicates rejected with HTTP 409. An employee who still has salary records cannot be deleted (HTTP 409) so payment history used by reports can never disappear.
+
+Expense data model (Phase 13): `Expense` is a **standalone** entity — a dated money outflow with no foreign keys. `category` is restricted to the cafe's configured list (Electricity, Gas, Rent, Maintenance, Cleaning, Internet, Miscellaneous) and `payment_method` to Cash/UPI/Card/Other; `amount` must be > 0 and rounded to 2 decimals. Title may repeat (two electricity bills are allowed) and any expense can always be deleted without breaking other records.
+
+Reports (Phase 14) introduce **no new tables** — `report_service` recomputes every figure live from recorded data (pure read-only aggregations). Sales are defined as the total of *paid* orders; the estimated profit summary (`Sales − Purchases − Salaries − Expenses`) is explicitly labelled an estimate because salaries are matched by month, not by an exact day.
+
 ## Chapter 5 — I/O Screens
 
 Screens implemented in Phase 1 (screenshots to be captured for final submission):
@@ -197,10 +212,10 @@ Screens implemented in Phase 1 (screenshots to be captured for final submission)
 | Suppliers             | `/suppliers`     | **Implemented (Phase 8)** — supplier table with search, contact details, material counts, add/edit/delete modal |
 | Inventory             | `/inventory`     | **Implemented (Phase 9)** — stat cards, materials table with stock/min/cost/supplier/low-stock badges, filters, stock movement + history modals, recent movements feed |
 | Purchases             | `/purchases`     | **Implemented (Phase 10)** — stat cards (total purchased / outstanding / count), purchases table with search + supplier/payment/date filters, new-purchase modal with material picker and live totals, detail modal, mark paid/unpaid |
-| Employees             | `/employees`     | Placeholder card (Phase 11)                        |
-| Salaries              | `/salaries`      | Placeholder card (Phase 12)                        |
-| Expenses              | `/expenses`      | Placeholder card (Phase 13)                        |
-| Reports               | `/reports`       | Placeholder card (Phase 14)                        |
+| Employees             | `/employees`     | **Implemented (Phase 11)** — employee table with search/role filters and an active toggle, add/edit/delete modal, live salary-count column |
+| Salaries              | `/salaries`      | **Implemented (Phase 12)** — stat cards (records shown / total paid / unpaid), salary-history table with employee/month/status filters, add/edit modal with live net preview |
+| Expenses              | `/expenses`      | **Implemented (Phase 13)** — stat cards, expense-history table with search + category/method/date filters, add/edit modal |
+| Reports               | `/reports`       | **Implemented (Phase 14)** — seven report tabs with date filters, mode dropdowns, summary cards, a plain-JS sales bar chart and a Print button |
 | Settings              | `/settings`      | **Implemented (Phase 2)** — two-card form: cafe profile + billing/receipt, logo preview, loading skeleton, inline validation, save/discard actions |
 
 ### Orders Screen Behaviour (Phase 6)
@@ -247,6 +262,30 @@ The purchases page (`/purchases`) opens with three stat cards — Total purchase
 
 **Detail modal** — read-only meta list (supplier, date, payment badge, recorded time, notes) plus the material lines (quantity × unit cost = amount) and the total added to inventory.
 
+### Expenses Screen Behaviour (Phase 13)
+
+The expenses page (`/expenses`) opens with three stat cards — Expenses, Total spent and Categories used — computed from `GET /api/expenses`' `summary` block over the filtered result set.
+
+**Expense history table** lists every expense newest first (by date, then id): title, category badge, formatted amount, paid-on date, payment method and notes, with Edit and Delete row actions. Toolbar filters: debounced search across title and notes, category dropdown, payment-method dropdown and from/to date inputs — all applied server-side. "Clear filters" resets the toolbar and reloads.
+
+**Add/Edit modal** — title (required, ≤120; duplicates are allowed deliberately), category select fed from the category allowlist, amount (>0, decimal), date input (defaults to today), payment-method select (defaults Cash) and optional notes (≤255). Client validation mirrors the server: `required`, `maxLength` and `positiveNumber` rules from `validation.js`; per-field server errors are mapped back onto the form. Delete uses a confirm dialog and is always allowed (an expense carries no foreign keys). The choices for the category and method dropdowns are fetched from `GET /api/expenses/options` so the UI never hard-codes them.
+
+### Reports Screen Behaviour (Phase 14)
+
+The reports page (`/reports`) is a read-only dashboard: it displays data and never edits anything. A filter bar sits above a row of seven tabs — **Sales, Orders, Inventory, Purchases, Salaries, Expenses, Profit** — each with its own report section that is shown/hidden client-side.
+
+* **Filter bar** — From/To date inputs, a mode dropdown whose options change per tab, Apply filters, Reset dates and a Print button. Only the active tab's data is fetched, on tab switch or filter apply.
+* **Sales** — Daily/Weekly/Monthly mode dropdown; summary cards (Sales total, Paid orders, Average order), a bar chart rendered in plain JavaScript on a `<canvas>` and a period/orders/sales table.
+* **Orders** — no mode select; summary cards plus two side-by-side tables: orders by status and by date.
+* **Inventory** — mode dropdown (Current stock / Low stock only / Stock movements); summary cards (Active materials, Low stock, Stock value); the current/low tables show stock with a low-stock badge, while the movements view swaps table columns to type, quantity, balance, note and time.
+* **Purchases** — mode dropdown (By date / By supplier); records and total summary plus a grouped table.
+* **Salaries** — no mode select; summary cards (Records, Total paid) plus a month/records/total table, newest month first.
+* **Expenses** — mode dropdown (By category / By date); records and total summary plus the grouped table.
+* **Profit** — the Estimated Profit summary (Sales − Purchases − Salaries − Expenses) rendered as a four-cell grid with an amber note that salary matching is by month, so the figure is an approximation, not an exact ledger balance.
+* **Print** — window.print(); print CSS hides the sidebar, top bar, filters and tabs and renders the active report section with visible table borders for paper.
+
+Loading skeleton rows and a "Could not load report" error state cover each tab; empty ranges show an empty-state row instead of a table.
+
 ### Customer Digital Menu Behaviour (Phase 5)
 
 Public page at `/menu/cafe`, shareable from the admin `/customer-menu` page:
@@ -281,7 +320,21 @@ UI notes: espresso-and-paper theme, Fraunces/Inter typography, grouped navigatio
 
 ## Chapter 6 — Reports
 
-No reports exist yet. Planned from Phase 14: daily/weekly/monthly sales, order status summary, current stock and low stock, purchases by supplier/date, monthly salary expense, expenses by category/date, estimated profit (Sales − Purchases − Salaries − Expenses).
+The Reports module (Phase 14) provides pre-built, read-only reports. Every figure is recomputed live from the recorded database — nothing is stored on the reports side — so the totals always match the underlying orders, purchases, salaries and expenses. Sales means the total of **paid** orders (collected revenue).
+
+| Report             | Grouping / mode                                  | Shows                                                    |
+| ------------------ | ------------------------------------------------ | -------------------------------------------------------- |
+| Sales              | Daily / Weekly / Monthly                         | Sales total, order count, average order per period; a bar chart and table (daily = last 14 days, weekly = rolling last 7 days, monthly = per `YYYY-MM`) |
+| Orders             | By status and by date (date-filtered)            | Order count and total per status (Pending → Preparing → Ready → Completed → Cancelled) and per day |
+| Inventory          | Current stock / Low stock only / Stock movements | Active materials with stock, minimum, cost and value; items at or below minimum; the latest 300 stock movements |
+| Purchases          | By supplier / By date (date-filtered)            | Purchase count and total per supplier or per day          |
+| Salaries           | By month (whole history)                         | Net salary paid per month and overall total               |
+| Expenses           | By category / By date (date-filtered)            | Expense count and total per category (highest first) or per day |
+| Profit             | Date-filterable                                  | Estimated Profit summary: Sales − Purchases − Salaries − Expenses, with each component shown |
+
+**Estimated Profit** is explicitly labelled an *estimated* management summary, not an exact ledger balance: salaries are keyed by month (`YYYY-MM`), so they are matched by the months covered by the selected date range rather than by an exact day. Purchases and expenses are matched on their recorded dates.
+
+Reports are served by the seven `GET /api/reports/*` endpoints (period and mode choices are pattern-validated with HTTP 422 on bad values) and rendered on the `/reports` page described in Chapter 5. The dashboard (Phase 15) will reuse these same read-only aggregations.
 
 ## Chapter 7 — Coding
 
@@ -328,6 +381,26 @@ No reports exist yet. Planned from Phase 14: daily/weekly/monthly sales, order s
 | `app/routers/suppliers.py`        | Suppliers API: CRUD + search                            |
 | `app/routers/inventory.py`        | Inventory API: items CRUD, /stock movements, history    |
 | `app/routers/purchases.py`        | Purchases API: record/list/detail/payment-status        |
+| `app/models/employee.py`          | Employee model + 1:N salaries relationship              |
+| `app/models/salary.py`            | Salary model (UNIQUE employee/month, server net snapshot) |
+| `app/models/expense.py`           | Expense model + EXPENSE_CATEGORIES / PAYMENT_METHODS constants |
+| `app/schemas/employee.py`         | Employee schemas; mobile/email/role/date validation     |
+| `app/schemas/salary.py`           | Salary schemas; YYYY-MM month, net ≥ 0 rule             |
+| `app/schemas/expense.py`          | Expense schemas; category/method allowlists, amount > 0 |
+| `app/services/employee_service.py`| Employee CRUD, live salary counts, delete guard (409)   |
+| `app/services/salary_service.py`  | Salary CRUD, net calculation, duplicate-month guard (409) |
+| `app/services/expense_service.py` | Expense CRUD, filters, summary totals                   |
+| `app/services/report_service.py`  | Read-only report aggregations (all seven views)         |
+| `app/routers/employees.py`        | Employees API: CRUD + search/role filters               |
+| `app/routers/salaries.py`         | Salaries API: CRUD + employee/month/status filters      |
+| `app/routers/expenses.py`         | Expenses API: CRUD, /options, filters                   |
+| `app/routers/reports.py`          | Reports API: seven GET endpoints, validated modes       |
+| `static/js/employees.js`          | Employees table, search/role filters, add/edit modal    |
+| `static/js/salaries.js`           | Salary history + filters + live net preview             |
+| `static/js/expenses.js`           | Expense history + filters + add/edit modal              |
+| `static/js/reports.js`            | Report tabs, plain-JS bar chart, print                  |
+| `static/css/expenses.css`         | Expenses page extras (date inputs, search width)        |
+| `static/css/reports.css`          | Report tabs, summary cards, chart, profit grid, print CSS |
 | `static/js/api.js`                | Fetch wrapper with ApiError                             |
 | `static/js/common.js`             | Shell injection, navigation, toasts, confirm dialogs    |
 | `static/js/validation.js`         | Reusable form validators                                |
@@ -349,7 +422,7 @@ No reports exist yet. Planned from Phase 14: daily/weekly/monthly sales, order s
 | `static/css/inventory.css`        | Inventory stat cards, movement badges, segmented control|
 | `static/js/purchases.js`          | Purchase table + filters, material cart with live totals |
 | `static/css/purchases.css`        | Purchases page extras (picker cost field, date inputs)  |
-| `tests/`                          | pytest suite (startup, database, settings, categories, menu items, public menu, orders, billing, suppliers, inventory, purchases) |
+| `tests/`                          | pytest suite (startup, database, settings, categories, menu items, public menu, orders, billing, suppliers, inventory, purchases, employees, salaries, expenses, reports) |
 
 ### Error Envelope
 
@@ -357,7 +430,7 @@ All API errors return `{ "success": false, "message": ..., "errors": [...] }`; v
 
 ## Chapter 8 — Software System Testing
 
-Automated tests (`uv run pytest`) — 248 passed on 2026-08-23 (startup 19, database 5, settings 15, categories 22, menu items 32, public menu 9, orders 37, billing 19, suppliers 30, inventory 59, purchases 21):
+Automated tests (`uv run pytest`) — **358 collected on 2026-08-29**: startup 19, database 5, settings 15, categories 22, menu items 32, public menu 9, orders 37, billing 19, suppliers 27, inventory 42, purchases 21, employees 35, salaries 31, expenses 27, reports 17. On this machine the run completed as **357 passed, 1 blocked**; the single failure (`test_init_db_creates_database_file`) is an environmental Windows file-lock — a running cafe-server process holds `data/cafe.db`, so the test that unlinks the database file cannot obtain exclusive access. It passes in isolation when no server holds the database.
 
 | Test Case                          | Input                    | Expected Result                     | Status |
 | ---------------------------------- | ------------------------ | ----------------------------------- | ------ |
@@ -367,8 +440,8 @@ Automated tests (`uv run pytest`) — 248 passed on 2026-08-23 (startup 19, data
 | Static assets served               | GET css/js/favicon       | 200 correct content type            | Pass   |
 | Database file created at startup   | lifespan init_db()       | data/cafe.db exists                 | Pass   |
 | Session executes query             | SELECT 1 via session     | Returns 1                           | Pass   |
-| Implemented tables registered      | Base.metadata            | cafe_settings, categories, menu_items, orders, order_items, suppliers, inventory_items, inventory_transactions, purchases, purchase_items present | Pass |
-| No future domain tables            | Base.metadata            | employees/salaries/expenses absent | Pass |
+| Implemented tables registered      | Base.metadata            | cafe_settings, categories, menu_items, orders, order_items, suppliers, inventory_items, inventory_transactions, purchases, purchase_items, employees, salaries, expenses present | Pass |
+| No unexpected domain tables        | Base.metadata            | payments / invoices / recipes / pytorch_models absent       | Pass |
 
 ### Settings Module Test Cases (Phase 2)
 
@@ -587,6 +660,77 @@ Tests use a unique per-run name tag, so reruns never collide with leftover data.
 
 Smoke check: `/purchases` page served its markup with `purchases.js` wired; `/api/purchases` returned the summary envelope (`count`, `total_amount`, `unpaid_count`, `unpaid_amount`) on the live server.
 
+### Employees Module Test Cases (Phase 11)
+
+| Test Case                              | Input                                    | Expected Result                              | Status |
+| -------------------------------------- | ---------------------------------------- | -------------------------------------------- | ------ |
+| Successful create                      | Valid name/mobile/email/role/date/salary | 201; values echoed (email lowercased)        | Pass   |
+| Salary-count accuracy                  | Create employee then add salary records  | `salary_count` reflects the additions        | Pass   |
+| Search & role filter                   | search term, `role=Chef`, `include_inactive=false` | Only matching rows, ordered by name  | Pass |
+| Invalid mobile (parametrised)          | 5 / 11 digit, non-digit, spaces          | 422 each                                    | Pass   |
+| Invalid email format                   | "not-an-email"                           | 422                                          | Pass   |
+| Role not in allowlist                  | "Owner"                                  | 422                                          | Pass   |
+| Future joining date                    | tomorrow                                 | 422                                          | Pass   |
+| Negative / boolean base salary         | `-100` / `true`                          | 422 each                                     | Pass   |
+| Unknown id on all routes               | id 999999 get/put/delete                 | 404 envelope each                            | Pass   |
+| Delete guard with salaries             | DELETE after salary records exist        | 409 "Delete their salary history first"      | Pass   |
+| Persisted in SQLite                    | Direct session query after API create    | Exact values found                           | Pass   |
+
+### Salaries Module Test Cases (Phase 12)
+
+| Test Case                              | Input                                    | Expected Result                              | Status |
+| -------------------------------------- | ---------------------------------------- | -------------------------------------------- | ------ |
+| Successful create                       | Employee + `2026-08` + base 25000        | 201; net = base + bonus − deduction          | Pass   |
+| Server-computed net (bonus/deduction)   | 25000 + 2000 − 500                       | 26500 stored (never client-supplied)         | Pass   |
+| Omitted base falls back                 | Provide only employee + month            | base copied from employee's current base     | Pass   |
+| Duplicate month per employee            | Second record for same `2026-08`         | 409                                          | Pass   |
+| Deduction exceeds base + bonus          | 25000 − 30000                            | 422 (net cannot be negative)                 | Pass   |
+| Bad month format                        | `2026-8`, `aug-2026`, year 1999/2101     | 422 each                                     | Pass   |
+| Unknown employee                        | employee_id 999999                       | 404                                          | Pass   |
+| Paid default date                       | POST with `payment_status: Paid`         | payment_date defaults to today               | Pass   |
+| List filters                            | employee_id / month / payment_status     | Only matching rows, newest month first       | Pass   |
+| Persisted in SQLite                     | Direct session query after API create    | Exact net/month/employee found               | Pass   |
+
+### Expenses Module Test Cases (Phase 13)
+
+| Test Case                              | Input                                    | Expected Result                              | Status |
+| -------------------------------------- | ---------------------------------------- | -------------------------------------------- | ------ |
+| Successful create                       | Valid title/category/amount/date/method   | 201 "Expense recorded."; defaults applied    | Pass   |
+| Defaults                                | Omit expense_date & payment_method       | expense_date = today; payment_method = Cash  | Pass   |
+| Valid category accepted                 | Each of the 7 allowlist categories       | 201 for each                                 | Pass   |
+| Category not in allowlist               | "Advertisin" / empty                     | 422 each                                     | Pass   |
+| Negative / zero / boolean amount        | `-5`, `0`, `true`                        | 422 each                                     | Pass   |
+| Amount rounding                         | `12.345`                                 | stored as `12.35`                            | Pass   |
+| Overlong title / notes                  | 121-char title, 256-char notes           | 422 each                                     | Pass   |
+| Duplicate title allowed                 | Reuse an existing title ("Rent")         | 201 (paid twice is legitimate)               | Pass   |
+| Payment method not in allowlist         | "Cheque"                                 | 422                                          | Pass   |
+| Invalid date values                     | `2026-2-30`, `abcd`                      | 422 each (automatic date parsing)            | Pass   |
+| List filters                            | search / category / payment_method / start_date / end_date | Only matching rows; `summary` totals match granularity of the filters | Pass |
+| Empty date range returns empty          | start = end, no matching expenses        | 200; `items: []`, `count: 0`, total 0        | Pass   |
+| /api/expenses/options                   | GET                                      | 200; categories + payment_methods lists      | Pass   |
+| Unknown id on all routes                | id 999999 get/put/delete                 | 404 envelope each                            | Pass   |
+| Persisted in SQLite                     | Direct session query after API create    | Exact values found                           | Pass   |
+
+Smoke check: `/expenses` page served its markup with `expenses.js` wired; the dashboard and reports tabs could open the expense record on the live server.
+
+### Reports Module Test Cases (Phase 14)
+
+| Test Case                              | Input                                    | Expected Result                              | Status |
+| -------------------------------------- | ---------------------------------------- | -------------------------------------------- | ------ |
+| Sales daily / weekly / monthly         | Three orders across days; switch period  | Each period sums only paid orders; labels/amounts/order-counts line up | Pass |
+| Unpaid orders excluded                 | Unpaid + paid orders in range            | `sales_total` counts paid only               | Pass   |
+| Date range respected                   | start_date = end_date                    | Only that day's orders appear                | Pass   |
+| Bad period / mode values (parametrised)| `period=yearly`, `report_type=bogus`, `group_by=bogus` | 422 each                                    | Pass |
+| Inventory current / low / movements   | report_type each                         | current lists materials + low flag; low lists only ≤ minimum; movements returns latest transactions | Pass |
+| Purchases by supplier / by date        | group_by each with dates                 | Grouped rows, count + total per group        | Pass   |
+| Salaries by month                      | Records across several months            | Total = Σ net_salary; newest month first     | Pass   |
+| Expenses by category / by date         | group_by each                            | Grouped count + total; categories highest-first | Pass |
+| Profit arithmetic                      | Known sales/purchases/salaries/expenses  | estimated_profit = sales − purchases − salaries − expenses exactly | Pass |
+| Empty database / no filters            | Fresh DB, no params                      | 200 with zeroed summary — never a crash      | Pass   |
+| Persisted data reflected live          | Create order/purchase/salary/expense, then fetch report | New values appear without any stored report table | Pass |
+
+Smoke check: `/reports` page served its markup with `reports.js` wired; each tab returned a 200 envelope from `/api/reports/*` on the live server, and the Profit tab rendered the four-component Estimated Profit grid.
+
 ## Chapter 9 — Implementation
 
 ### Installation
@@ -604,7 +748,9 @@ Current UI requires no training beyond navigation; module-specific training will
 
 ### Limitations
 
-* Employee/salary/expense modules not yet implemented (see roadmap)
+* Employee/salary/expense modules currently cover recording and reporting only; attendance/time-sheets and automated payslip generation are out of scope
+* Salaries in the Profit report are matched by month, not by an exact day, so the Estimated Profit is an approximation (explicitly labelled in the UI)
+* Expenses record a single flat amount per entry — no tax breakup, instalments or attachments
 * Purchases are record-only: mistakes cannot be edited or deleted — the audit trail stays intact by design
 * Purchase payments track only Paid/Unpaid; partial payments and supplier ledgers are out of scope
 * Stock usage is recorded manually via Stock Out; recipes do not deduct ingredients automatically
@@ -636,6 +782,7 @@ QR-code menu access, online ordering/payments, multi-branch support, cloud backu
 | REST API    | HTTP interface returning JSON                               |
 | Envelope    | Standard JSON wrapper for success/error responses           |
 | Lifespan    | FastAPI startup/shutdown hook used to initialize the DB     |
+| Estimated Profit | Sales − Purchases − Salaries − Expenses; an approximate management figure (salaries matched by month) |
 
 ## Development Phases Roadmap
 
@@ -650,10 +797,10 @@ QR-code menu access, online ordering/payments, multi-branch support, cloud backu
 | 8     | Suppliers                       | Implemented |
 | 9     | Inventory                       | Implemented |
 | 10    | Purchases                       | Implemented |
-| 11    | Employees                       | Planned     |
-| 12    | Salaries                        | Planned     |
-| 13    | Expenses                        | Planned     |
-| 14    | Reports                         | Planned     |
+| 11    | Employees                       | Implemented |
+| 12    | Salaries                        | Implemented |
+| 13    | Expenses                        | Implemented |
+| 14    | Reports                         | Implemented |
 | 15    | Live Dashboard                  | Planned     |
 | 16–17 | System Testing & Final Docs     | Planned     |
 

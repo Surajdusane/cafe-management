@@ -2,7 +2,7 @@
 
 A simple web-based Cafe Management System built for a final-year BCA/BBA Computer Application academic project. It manages the daily operations of a small or medium-sized cafe: menu, orders, billing, inventory, suppliers, purchases, employees, salaries, expenses and reports.
 
-## Current Status — Phases 1–9 complete (Foundation · Settings · Menu · Customer Digital Menu · Orders · Billing · Suppliers · Inventory)
+## Current Status — Phases 1–14 complete (Foundation · Settings · Menu · Customer Digital Menu · Orders · Billing · Suppliers · Inventory · Purchases · Employees · Salaries · Expenses · Reports)
 
 Implemented so far:
 
@@ -19,9 +19,14 @@ Implemented so far:
 - Inventory: raw materials with units, minimum stock, purchase price and supplier link; atomic Stock In / Stock Out / Adjustment movements with full history and low-stock warnings
 - API error handling with a consistent JSON error envelope
 - Reusable frontend utilities: `api.js` (fetch wrapper), `common.js` (toast notifications, confirm dialogs), `validation.js` (form validators)
-- Automated tests (227 passing) for startup, database, settings, categories, menu items, public menu, orders, billing, suppliers and inventory
+- Purchases: multi-item purchases with server-calculated totals and an atomic inventory update (guarded SQL quantity increase + Stock In movement rows)
+- Employees: CRUD with 10-digit mobile/email/role validation, active toggles and a salary-history delete guard
+- Salaries: one record per employee per month, net salary (base + bonus − deduction) always calculated server-side
+- Expenses: category/payment-method allowlists, date filters and a summary envelope for stat cards
+- Reports: seven read-only views (sales daily/weekly/monthly, orders, inventory, purchases, salaries, expenses) plus an Estimated Profit summary (Sales − Purchases − Salaries − Expenses)
+- Automated tests (358 collected; 357 passed — the one blocked test is a Windows file-lock flake when a running server holds `data/cafe.db`)
 
-Not yet implemented (planned phases): purchases, employees, salaries, expenses, reports, dashboard live data.
+Not yet implemented (planned phases): live dashboard statistics (Phase 15) and the final testing/documentation pass.
 
 ## Technology Stack
 
@@ -106,11 +111,11 @@ Environment overrides: `CAFE_HOST`, `CAFE_PORT`.
 | `/billing`       | Billing         | Implemented (Phase 7)         |
 | `/suppliers`     | Suppliers       | Implemented (Phase 8)         |
 | `/inventory`     | Inventory       | Implemented (Phase 9)         |
-| `/purchases`     | Purchases       | Placeholder → Phase 10        |
-| `/employees`     | Employees       | Placeholder → Phase 11        |
-| `/salaries`      | Salaries        | Placeholder → Phase 12        |
-| `/expenses`      | Expenses        | Placeholder → Phase 13        |
-| `/reports`       | Reports         | Placeholder → Phase 14        |
+| `/purchases`     | Purchases       | Implemented (Phase 10)        |
+| `/employees`     | Employees       | Implemented (Phase 11)        |
+| `/salaries`      | Salaries        | Implemented (Phase 12)        |
+| `/expenses`      | Expenses        | Implemented (Phase 13)        |
+| `/reports`       | Reports         | Implemented (Phase 14)        |
 | `/settings`      | Settings        | Implemented (Phase 2)         |
 
 ## Documentation
