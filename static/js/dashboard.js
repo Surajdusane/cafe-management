@@ -157,6 +157,21 @@
 
   // ---------- load ----------
 
+  function showError(message) {
+    document.querySelectorAll("#statGrid, #trendCard, #topCard, #recentOrdersCard")
+      .forEach((node) => node.classList.add("is-dimmed"));
+    const errorPanel = document.getElementById("dashError");
+    if (!errorPanel) return;
+    errorPanel.hidden = false;
+    errorPanel.classList.add("visible");
+    errorPanel.innerHTML = `
+      <div class="es-icon">${UI.ICONS.receipt}</div>
+      <h4>Could not load the dashboard</h4>
+      <p>${UI.escapeHtml(message)}</p>
+      <button type="button" class="btn btn-primary" id="retryBtn">Try again</button>`;
+    document.getElementById("retryBtn").addEventListener("click", loadDashboard);
+  }
+
   async function loadDashboard() {
     const errorPanel = document.getElementById("dashError");
     try {
@@ -177,18 +192,13 @@
       document.querySelectorAll("#statGrid, #trendCard, #topCard, #recentOrdersCard")
         .forEach((node) => node.classList.remove("is-dimmed"));
     } catch (error) {
-      document.querySelectorAll("#statGrid, #trendCard, #topCard, #recentOrdersCard")
-        .forEach((node) => node.classList.add("is-dimmed"));
-      errorPanel.hidden = false;
-      errorPanel.classList.add("visible");
-      errorPanel.innerHTML = `
-        <div class="es-icon">${UI.ICONS.receipt}</div>
-        <h4>Could not load the dashboard</h4>
-        <p>${UI.escapeHtml(error.message)}</p>
-        <button type="button" class="btn btn-primary" id="retryBtn">Try again</button>`;
-      document.getElementById("retryBtn").addEventListener("click", loadDashboard);
+      showError(error.message);
     }
   }
+
+  window.addEventListener("error", (event) => {
+    showError(event.message || "Unexpected JavaScript error on this page.");
+  });
 
   document.addEventListener("DOMContentLoaded", loadDashboard);
 })();
