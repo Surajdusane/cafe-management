@@ -1,7 +1,13 @@
 /* Reports page (Phase 14) */
 
-.report-filters { margin-bottom: 14px; }
-.report-filters .toolbar { border-bottom: none; }
+.report-filters { margin-bottom: 14px; padding: 16px 20px; }
+.report-filters .toolbar {
+  border-bottom: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
 .filter-note { font-size: 12.5px; color: var(--muted); font-weight: 600; white-space: nowrap; }
 .filter-field {
   display: inline-flex;
