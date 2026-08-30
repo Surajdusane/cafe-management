@@ -138,7 +138,7 @@ def dashboard_summary(db: Session) -> dict:
 
     return {
         "cafe": {
-            "name": settings.cafe_name or "Café Desk",
+            "name": settings.cafe_name or "Cafe Desk",
             "currency": settings.currency or "₹",
         },
         "date": today.isoformat(),

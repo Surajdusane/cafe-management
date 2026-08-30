@@ -1011,7 +1011,7 @@ Live landing-page numbers for the admin dashboard (Phase 15). Everything is reco
 {
   "success": true,
   "data": {
-    "cafe": { "name": "Café Desk", "currency": "₹" },
+    "cafe": { "name": "Cafe Desk", "currency": "₹" },
     "date": "2026-08-29",
     "stats": {
       "today_sales": 1550.0,

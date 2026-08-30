@@ -84,12 +84,12 @@
         <div class="brand">
           <div class="brand-mark">${ICONS.cup}</div>
           <div>
-            <div class="brand-name">Café Desk</div>
+            <div class="brand-name">Cafe Desk</div>
             <span class="brand-sub">Management</span>
           </div>
         </div>
         <nav class="nav" aria-label="Main navigation">${groups}</nav>
-        <div class="sidebar-foot">v1.0 · Foundation build</div>
+        <div class="sidebar-foot"></div>
       </aside>`;
   }
 
@@ -99,7 +99,7 @@
     return `
       <header class="topbar">
         <button type="button" class="hamburger" id="navToggle" aria-label="Open navigation">${ICONS.dashboard.replace('viewBox', 'width="18" height="18" viewBox')}</button>
-        <span class="crumb-sep">Café Desk</span>
+        <span class="crumb-sep">Cafe Desk</span>
         <h1>/ ${title}</h1>
         <div class="top-right">
           <span id="todayLabel"></span>
