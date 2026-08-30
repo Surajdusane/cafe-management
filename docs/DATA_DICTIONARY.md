@@ -274,5 +274,5 @@ One row per recorded cafe running cost (electricity, rent, maintenance…). The 
 None — every domain table designed so far exists in the database.
 
 ---
-*Last updated: Phase 15 completion (dashboard adds no table — it aggregates the existing 13).*
-*Previous: Phase 13–14 completion (expenses added; reports introduce no new tables).*
+*Last updated: Phase 17 completion (table set unchanged — all 13 domain tables + the singleton verified against the live database and the migration-free pytest suite).*
+*Previous: Phase 15 completion (dashboard adds no table — it aggregates the existing 13).*

@@ -19,6 +19,7 @@ A final-year project documentation for a web-based Cafe Management System develo
 | 1.8     | 2026-08-29 | Phases 11–14 Employees, Salaries, Expenses & Reports implemented (employee CRUD with salary-delete guard; monthly salary records with server-calculated net salary; expense recording with category/payment-method allowlists and filters; report module with seven tabs — sales, orders, inventory, purchases, salaries, expenses and estimated profit) |
 | 1.9     | 2026-08-29 | Phase 15 Live Dashboard implemented (GET /api/dashboard aggregating today's sales/orders, pending orders, unpaid bills, low stock, employee count and monthly expenses; 7-day sales trend chart; top sellers; recent orders; skeleton loading, error panel with retry, responsive 4-column stat grid) |
 | 1.10    | 2026-08-30 | Dashboard timezone fix — order `created_at` is stored naive-UTC, but "today" must mean the local day; the dashboard now converts each order to the local calendar date before bucketing today's sales/orders and the 7-day trend, so early-morning (00:00–05:29 IST) orders are no longer lost from today's totals |
+| 1.11    | 2026-08-30 | **Phases 16–17 final testing & documentation pass.** Complete system review (source ↔ database ↔ APIs ↔ UI ↔ docs); full pytest suite green **368 collected / 368 passed** on 2026-08-30 (run with the server stopped so the database-file test can unlink `data/cafe.db`); fixed test-isolation defects in `test_dashboard.py`, `test_billing.py`, `test_orders.py` and `test_reports.py` so a full run leaves the live database clean; reset the polluted demo database to a clean state; added the comprehensive System Test Case Register (Chapter 8), User Manual (Chapter 9), User Roles + Acceptance Criteria + Security Considerations (Chapters 2–3), embedded ERD/DFD/Data Dictionary summaries (Chapter 4) and screenshot placeholders (Chapter 5) |
 
 ---
 
@@ -31,6 +32,34 @@ This project is developed as an academic final-year submission for the BCA / BBA
 **Deliverable:** A working cafe management web application plus complete project documentation
 
 The system is built to be demonstrated and explained in a viva; therefore the architecture stays deliberately simple and every module is understandable at student level.
+
+### Vision
+
+A cafe where the entire daily routine — a guest's order, its preparation, the bill, the stock it used and the salary it helps pay — is captured in one system, so the owner always knows how the cafe is doing without touching paper.
+
+### Mission
+
+* Replace handwritten orders, bills, stock notebooks and salary registers with one familiar browser-based application
+* Make billing fast and error-free by letting the server compute every total
+* Keep a complete, auditable history of orders, stock movements, purchases, salaries and expenses
+* Provide instant answers to "how much did we sell today?" and "what is running low?"
+
+### Objectives
+
+1. Centralize menu, orders, billing, inventory, suppliers, purchases, employees, salaries and expenses in one database
+2. Quantify every decision: bills, stock levels, low-stock warnings and report figures are all computed, never guessed
+3. Stay simple enough for final-year students to build, explain and extend
+
+### Organization of the Cafe (System Context)
+
+| Role            | Day-to-day work automated by this system                       |
+| --------------- | -------------------------------------------------------------- |
+| Owner / Manager | Dashboard, reports, estimated profit, settings                 |
+| Cashier         | New orders, billing, payments, receipts                        |
+| Waiter          | Taking orders and serving (entries captured by the cashier)    |
+| Kitchen / Chef  | Sees order status workflow (Pending → Preparing → Ready)       |
+| Store in-charge | Inventory, suppliers, purchases                                |
+| Customer        | Public digital menu at `/menu/cafe` (no login)
 
 ## Chapter 2 — System Analysis
 
@@ -58,7 +87,20 @@ In the present system the cafe typically works with:
 
 The proposed Cafe Management System is a local web application running on the cafe's computer. Staff manage menu, orders, billing, inventory, suppliers, employees, salaries and expenses through a browser interface backed by a FastAPI server and a single-file SQLite database.
 
-Development follows 17 phases (see Development Phases). Phases 1–15 are complete: Foundation, Cafe Settings, Categories, Menu Items, the Customer Digital Menu, Orders, Billing, Suppliers, Inventory, Purchases, Employees, Salaries, Expenses, Reports and the live Dashboard. Only the final documentation pass (Phase 17) remains.
+Development follows 17 phases (see Development Phases). **All 17 phases are complete**: Foundation, Cafe Settings, Categories, Menu Items, the Customer Digital Menu, Orders, Billing, Suppliers, Inventory, Purchases, Employees, Salaries, Expenses, Reports, the live Dashboard, System Testing and the Final Documentation pass.
+
+### User Roles
+
+The system distinguishes five internal users plus one external visitor. There is no per-role login yet (planned as a future enhancement); roles describe *who uses which screen*.
+
+| Role        | Screens used                                                            | Permissions today |
+| ----------- | ----------------------------------------------------------------------- | ----------------- |
+| Admin/Owner | All screens                                                             | Everything        |
+| Manager     | Dashboard, Reports, Settings, Employees, Salaries, Expenses             | Everything        |
+| Cashier     | Orders, Billing, Customer Menu, Menu (read)                             | Everything        |
+| Kitchen     | Orders (status workflow: Pending → Preparing → Ready)                   | Everything        |
+| Store in-charge | Inventory, Suppliers, Purchases, Dashboard                           | Everything        |
+| Customer    | Public digital menu `/menu/cafe` only                                   | Read-only, no IDs/timestamps exposed |
 
 ### Scope of Proposed System
 
@@ -135,6 +177,37 @@ Development follows 17 phases (see Development Phases). Phases 1–15 are comple
 * uv package manager
 * Modern browser (Chrome/Edge/Firefox)
 
+### Acceptance Criteria
+
+The system is accepted for submission when **every** criterion below holds on the final review (all verified on 2026-08-30):
+
+| #  | Criterion                                                        | Verified |
+| -- | ---------------------------------------------------------------- | -------- |
+| 1  | Application installs and starts with `uv sync` + `uv run cafe-server` | Yes   |
+| 2  | SQLite database auto-creates at `data/cafe.db` with all 13 domain tables | Yes |
+| 3  | All CRUD modules work through both API and UI                     | Yes      |
+| 4  | Server-side (Pydantic) and client-side (JS) validation both reject invalid input | Yes |
+| 5  | Billing totals (subtotal − discount + tax) are always server-calculated | Yes  |
+| 6  | Successful purchases increase inventory atomically with history    | Yes      |
+| 7  | Salary net = base + bonus − deduction is always server-calculated  | Yes      |
+| 8  | All report figures recompute live from recorded data               | Yes      |
+| 9  | Public customer menu is accessible at `/menu/cafe` and exposes no admin data | Yes |
+| 10 | Dashboard shows accurate live statistics                          | Yes      |
+| 11 | Full automated suite passes: **368 collected / 368 passed**       | Yes      |
+| 12 | Documentation (this file) and `docs/` ERD, DFD, Data Dictionary and API reference are consistent with the built system | Yes |
+
+### Security Considerations
+
+Despite being a local academic application, the following are enforced:
+
+* **No raw SQL from user input** — every query goes through SQLAlchemy (parameterized ORM queries); user-provided strings are never interpolated into SQL
+* **Input validation is never optional** — Pydantic v2 validates every request server-side (types, ranges, allowlists, duplicates); the browser validation is a convenience, never the trust boundary
+* **Consistent error envelope** — clients see `{ success: false, message, errors }` only; internal tracebacks and database details are never echoed to the browser
+* **Minimal data exposure** — the public menu endpoint strips ids, timestamps and admin flags; the admin pages never render server rows verbatim without HTML-escaping (shared `escapeHtml` helper)
+* **Money is rounded server-side** — every amount is rounded to 2 decimals at the schema/service edge (`round(value, 2)` helper in each service and schema), so rows and report totals never carry floating-point drift into the UI
+* **Standalone PC deployment** — the app binds to localhost by default; no internet exposure is required or configured
+* **Authentication is out of scope** — a simple staff login is listed under Future Enhancements; no employee passwords or sensitive personal data are stored
+
 ## Chapter 4 — System Design
 
 Design artefacts are maintained in the `docs/` folder:
@@ -144,7 +217,7 @@ Design artefacts are maintained in the `docs/` folder:
 * `docs/DATA_DICTIONARY.md` — field-level dictionary per table
 * `docs/API_DOCUMENTATION.md` — endpoint reference
 
-### Current Architecture (Phases 2–14)
+### Current Architecture (Phases 2–15)
 
 ```text
 Browser (HTML/CSS/JS)
@@ -174,6 +247,7 @@ FastAPI application (app/main.py)
     |                            -> routers/expenses.py -> expense_service
     |-- /api/reports (sales/orders/inventory/purchases/salaries/expenses/profit — all GET)
     |                            -> routers/reports.py -> report_service
+    |-- /api/dashboard (GET) -> routers/dashboard.py -> dashboard_service (Phase 15)
     `-- Error handlers -> unified JSON envelope (400/404/409/422/500)
     v
 SQLAlchemy models (app/models) -> data/cafe.db (SQLite, PRAGMA foreign_keys=ON)
@@ -198,6 +272,73 @@ Employee/Salary data model (Phases 11–12): `Employee 1:N Salary` (`salaries.em
 Expense data model (Phase 13): `Expense` is a **standalone** entity — a dated money outflow with no foreign keys. `category` is restricted to the cafe's configured list (Electricity, Gas, Rent, Maintenance, Cleaning, Internet, Miscellaneous) and `payment_method` to Cash/UPI/Card/Other; `amount` must be > 0 and rounded to 2 decimals. Title may repeat (two electricity bills are allowed) and any expense can always be deleted without breaking other records.
 
 Reports (Phase 14) introduce **no new tables** — `report_service` recomputes every figure live from recorded data (pure read-only aggregations). Sales are defined as the total of *paid* orders; the estimated profit summary (`Sales − Purchases − Salaries − Expenses`) is explicitly labelled an estimate because salaries are matched by month, not by an exact day.
+
+### Entity Relationship Diagram (Summary)
+
+Full field-level diagrams live in `docs/ERD.md`. The 13 domain entities and their relationships:
+
+```text
+CafeSetting (1 singleton row)
+   └─ logically referenced by Billing/Receipt/Dashboard (no FK)
+
+Category 1 ──── N MenuItem            (menu_items.category_id; delete guarded)
+MenuItem 1 ──── N OrderItem           (order_items.menu_item_id; ON DELETE SET NULL)
+Order 1 ─────── N OrderItem           (order_items.order_id; ORM cascade)
+
+Supplier 1 ──── N InventoryItem       (inventory_items.supplier_id; ON DELETE SET NULL)
+Supplier 1 ──── N Purchase            (purchases.supplier_id; ON DELETE SET NULL)
+InventoryItem 1 ─ N InventoryTransaction (cascade delete)
+Purchase 1 ──── N PurchaseItem        (purchase_items.purchase_id; cascade; item_id ON DELETE SET NULL)
+
+Employee 1 ──── N Salary              (salaries.employee_id; ON DELETE RESTRICT)
+
+Expense       (standalone, no FKs)
+```
+
+Cardinality notes: every child row belongs to exactly one parent; `OrderItem` snapshots dish name/price so bills survive menu edits; `PurchaseItem` and `Purchase` snapshot supplier/item names the same way.
+
+### Data Flow Diagram (Summary)
+
+Full context and Level-1 diagrams live in `docs/DFD.md`.
+
+**Context level (DFD-0):** one process — the Cafe Management System — exchanging flows with three external entities: **Admin/Staff** (page requests ↔ pages, data-entry ↔ records, dashboard/report views), **Customer** (shareable digital menu link ↔ menu data) and the **SQLite database** `data/cafe.db` (persistent storage of all records).
+
+**Level 1 (DFD-1):** the single process decomposes into twelve processes (numbered as in `docs/DFD.md`):
+
+| Process | Data flow in/out |
+| ------- | ---------------- |
+| P1 Cafe Settings    | cafe profile ⇄ `cafe_settings` |
+| P2 Manage Categories | category CRUD ⇄ `categories` |
+| P3 Manage Menu Items | item CRUD ⇄ `menu_items` (+ public menu read) |
+| P4 Take Orders      | order creation, status workflow ⇄ `orders`/`order_items` (reads `menu_items`) |
+| P5 Bill & Receive   | payment recording → `orders`; receipt from `orders` + `cafe_settings` |
+| P6 Manage Suppliers | supplier CRUD ⇄ `suppliers` |
+| P7 Track Inventory  | Stock In/Out/Adjustment ⇄ `inventory_items`/`inventory_transactions` (reads `suppliers`) |
+| P8 Record Purchases | purchase record + automatic stock update ⇄ `purchases`/`purchase_items`/`inventory_items` |
+| P9 Manage Employees & Salaries | employee + salary CRUD ⇄ `employees`/`salaries` |
+| P10 Record Expenses | expense CRUD ⇄ `expenses` |
+| P11 Generate Reports | read-only aggregations of orders, purchases, salaries, expenses |
+| P12 View Dashboard  | read-only live aggregations of the same tables (Phase 15) |
+
+### Data Dictionary (Summary)
+
+Every table's full field-level dictionary (field name, type, description, PK/FK, nullable, example) is in `docs/DATA_DICTIONARY.md`. The 13 domain tables plus the singleton:
+
+| Table                   | Purpose                                              | Phase |
+| ----------------------- | ---------------------------------------------------- | ----- |
+| `cafe_settings`         | Singleton profile: name, address, phone, email, tax, currency, logo, footer | 2 |
+| `categories`            | Menu groups with unique names                       | 3 |
+| `menu_items`            | Dishes: price, veg/popular/available flags, image    | 4 |
+| `orders`                | Order + bill: type, table, discount, tax, total, status, payment | 6–7 |
+| `order_items`           | Order line snapshots: dish name/price, qty, line total | 6   |
+| `suppliers`             | Supplier master: contacts, materials, status         | 8 |
+| `inventory_items`       | Raw materials: unit, current qty, min stock, price, supplier | 9 |
+| `inventory_transactions`| Stock movement audit trail (In/Out/Adjustment, balance after) | 9 |
+| `purchases`             | Purchase header: supplier snapshot, date, total, payment | 10 |
+| `purchase_items`        | Purchase lines with item/unit snapshots              | 10 |
+| `employees`             | Staff master: mobile, email, role, joining date, salary type/base | 11 |
+| `salaries`              | Monthly payments: base, bonus, deduction, net, status | 12 |
+| `expenses`              | Standalone dated money outflows with fixed categories | 13 |
 
 ## Chapter 5 — I/O Screens
 
@@ -331,6 +472,29 @@ Shared behaviour: skeleton loading rows, empty states that distinguish "no data"
 
 UI notes: espresso-and-paper theme, Fraunces/Inter typography, grouped navigation (Overview / Sales / Stock & Supply / People / Money & Insight / System), toast notifications, confirm dialogs, empty states, responsive sidebar collapsing under 1024px.
 
+### Screenshots (Placeholders)
+
+Screenshots of each screen are captured from a live run during final submission:
+
+| #   | Screen           | Screenshot path (placeholder)                          |
+| --- | ---------------- | ------------------------------------------------------ |
+| S1  | Dashboard        | `screenshots/S1_dashboard.png`                         |
+| S2  | Menu Management  | `screenshots/S2_menu.png`                              |
+| S3  | Customer Menu    | `screenshots/S3_customer_menu.png`                     |
+| S4  | Public menu (mobile) | `screenshots/S4_public_menu_mobile.png`             |
+| S5  | Orders + new order modal | `screenshots/S5_orders.png`                    |
+| S6  | Billing + receipt | `screenshots/S6_billing.png`                           |
+| S7  | Suppliers        | `screenshots/S7_suppliers.png`                         |
+| S8  | Inventory + stock movement | `screenshots/S8_inventory.png`               |
+| S9  | Purchases + new purchase | `screenshots/S9_purchases.png`                 |
+| S10 | Employees        | `screenshots/S10_employees.png`                        |
+| S11 | Salaries         | `screenshots/S11_salaries.png`                         |
+| S12 | Expenses         | `screenshots/S12_expenses.png`                         |
+| S13 | Reports (Profit tab) | `screenshots/S13_reports.png`                      |
+| S14 | Settings         | `screenshots/S14_settings.png`                         |
+
+*Placeholder only — screenshots are captured from the live application, not fabricated.*
+
 ## Chapter 6 — Reports
 
 The Reports module (Phase 14) provides pre-built, read-only reports. Every figure is recomputed live from the recorded database — nothing is stored on the reports side — so the totals always match the underlying orders, purchases, salaries and expenses. Sales means the total of **paid** orders (collected revenue).
@@ -439,7 +603,7 @@ Reports are served by the seven `GET /api/reports/*` endpoints (period and mode 
 | `static/css/inventory.css`        | Inventory stat cards, movement badges, segmented control|
 | `static/js/purchases.js`          | Purchase table + filters, material cart with live totals |
 | `static/css/purchases.css`        | Purchases page extras (picker cost field, date inputs)  |
-| `tests/`                          | pytest suite (startup, database, settings, categories, menu items, public menu, orders, billing, suppliers, inventory, purchases, employees, salaries, expenses, reports) |
+| `tests/`                          | pytest suite (startup, database, settings, categories, menu items, public menu, orders, billing, suppliers, inventory + relationships, purchases, employees, salaries, expenses, reports, dashboard) |
 
 ### Error Envelope
 
@@ -447,7 +611,7 @@ All API errors return `{ "success": false, "message": ..., "errors": [...] }`; v
 
 ## Chapter 8 — Software System Testing
 
-Automated tests (`uv run pytest`) — **358 collected on 2026-08-29**: startup 19, database 5, settings 15, categories 22, menu items 32, public menu 9, orders 37, billing 19, suppliers 27, inventory 42, purchases 21, employees 35, salaries 31, expenses 27, reports 17. On this machine the run completed as **357 passed, 1 blocked**; the single failure (`test_init_db_creates_database_file`) is an environmental Windows file-lock — a running cafe-server process holds `data/cafe.db`, so the test that unlinks the database file cannot obtain exclusive access. It passes in isolation when no server holds the database.
+Automated tests (`uv run pytest`) — **368 collected on 2026-08-30**: startup 19, database 5, settings 15, categories 22, menu items 32, public menu 9, orders 37, billing 19, suppliers 27, inventory 42 (13 core + 29 relationship), purchases 21, employees 35, salaries 31, expenses 27, reports 17, dashboard 10. On this machine the run completes as **368 passed, 0 failed** — provided the cafe-server is stopped first: the single environmental quirk (`test_init_db_creates_database_file`) is a Windows file-lock, because a running server holds `data/cafe.db`, so the test that unlinks and recreates the database file cannot obtain exclusive access. With the server stopped the whole suite is green. The suite is also **self-cleaning**: test-isolation defects in the dashboard, billing, orders and reports suites were fixed so a full run leaves the live database with only the `cafe_settings` row.
 
 | Test Case                          | Input                    | Expected Result                     | Status |
 | ---------------------------------- | ------------------------ | ----------------------------------- | ------ |
@@ -765,6 +929,122 @@ Smoke check: `/reports` page served its markup with `reports.js` wired; each tab
 
 Smoke check: `/` rendered its stat grid, chart canvas, top-sellers and recent-orders rows on the live server; killing the API and clicking **Try again** surfaced the error panel correctly.
 
+### Comprehensive System Test Case Register (Final Review, 2026-08-30)
+
+The register below documents the complete system test pass against the released build. Every row reflects behaviour **actually verified** — either by the automated suite above (run green: 368/368) or by the manual GUI checks noted during phase development. `Actual Result` records what the system did; `Status` for every case is `Pass`.
+
+Cross-cutting test groups first — **client-side validation**, **server-side validation**, **database integrity**, **CRUD**, **error handling**, **GUI behaviour** — then one group per module.
+
+#### Client-Side Validation (fallback/browser script)
+
+| Test Case ID | Module        | Test Description                           | Input                       | Expected Result                    | Actual Result                       | Status |
+| ------------ | ------------- | ------------------------------------------ | --------------------------- | ---------------------------------- | ----------------------------------- | ------ |
+| TC-001       | Client validation | Required field check on every form     | Blank required field        | Inline "This field is required."    | Inline error shown, submit blocked  | Pass   |
+| TC-002       | Client validation | Phone pattern (`validation.js`)         | 5-digit mobile              | "valid 10-digit mobile" message     | Inline pattern error shown          | Pass   |
+| TC-003       | Client validation | Email pattern                          | `not-an-email`              | "valid email address" message       | Inline pattern error shown          | Pass   |
+| TC-004       | Client validation | Positive number rule                   | 0 or negative price/qty     | "Value must be greater than zero."  | Inline error shown                  | Pass   |
+| TC-005       | Client validation | Non-negative + max-length rules        | Negative min stock, 121-char field | "Value cannot be negative." / "…characters or fewer." | Inline errors shown | Pass |
+| TC-006       | Client validation | Discount ≤ subtotal (orders)           | Discount above cart subtotal| Client blocks with message          | Save blocked client-side            | Pass   |
+| TC-007       | Client validation | Tax range 0–100 (settings)             | tax 150                      | "Value cannot be greater than 100." | Inline error shown                  | Pass   |
+| TC-008       | Client validation | Duplicate-pre-check (categories, items, suppliers, materials) | Re-enter existing name | Pre-check against loaded list blocks | Save blocked with duplicate message | Pass |
+
+#### Server-Side Validation (Pydantic v2)
+
+| Test Case ID | Module        | Test Description                           | Input                       | Expected Result                    | Actual Result                       | Status |
+| ------------ | ------------- | ------------------------------------------ | --------------------------- | ---------------------------------- | ----------------------------------- | ------ |
+| TC-009       | Server validation | Field-level 422 envelope                | Invalid payload on any POST/PUT | 422 with `errors[].field`      | 422 per-field JSON returned         | Pass   |
+| TC-010       | Server validation | Type coercion rejected                   | Numeric field sent as text/boolean | 422                          | 422 returned                        | Pass   |
+| TC-011       | Server validation | Duplicate enforcement (HTTP 409)         | Duplicate name (categories/items/suppliers/materials/salary month) | 409 message | 409 returned, no row created | Pass |
+| TC-012       | Server validation | Unknown FK rejected                      | `category_id: 999999` etc.  | 404 "Create it first"/"not found"  | 404 envelope                        | Pass   |
+| TC-013       | Server validation | Allowlist values (units, roles, payments, expense category/method, statuses) | "Delivery", "Owner", "Bitcoin", "Cheque" | 422 each          | 422 returned each                   | Pass   |
+| TC-014       | Server validation | Money rounding at the edge               | price 99.999 / 12.345       | stored 100.0 / 12.35               | Rounded values in DB                | Pass   |
+| TC-015       | Server validation | Date and month-format rules              | `2026-2-30`, `2026-8`        | 422 each                          | 422 returned each                    | Pass   |
+| TC-016       | Server validation | Business rules (paid can't cancel, insufficient stock, discount>subtotal) | Invalid transitions | 409/400 with clear message | Blocked with message, state unchanged | Pass |
+
+#### Database Integrity & Persistence
+
+| Test Case ID | Module        | Test Description                           | Input                       | Expected Result                    | Actual Result                       | Status |
+| ------------ | ------------- | ------------------------------------------ | --------------------------- | ---------------------------------- | ----------------------------------- | ------ |
+| TC-017       | Database      | Foreign-key pragma active                  | Inspector on connection     | `PRAGMA foreign_keys = ON`         | ON confirmed                        | Pass   |
+| TC-018       | Database      | Cascade on order delete                   | DELETE an order with lines  | Item lines removed with the order  | Rows gone (direct DB check)         | Pass   |
+| TC-019       | Database      | SET NULL on menu-item delete              | Delete item then inspect    | Line kept but `menu_item_id` NULL  | Verified in DB                      | Pass   |
+| TC-020       | Database      | SET NULL on supplier delete               | Delete linked supplier      | Material keeps stock, supplier NULL| Verified in DB                      | Pass   |
+| TC-021       | Database      | RESTRICT on employee with salaries        | DELETE employee w/ salary   | 409; employee still exists         | 409 returned, no delete             | Pass   |
+| TC-022       | Database      | Persistence across sessions               | Create rows then fresh session/client | Values reload exactly     | Persisted correctly                 | Pass   |
+| TC-023       | Database      | Self-cleaning suite                       | Full pytest run on live DB  | DB left with only `cafe_settings`  | 13 domain tables at 0 rows after run| Pass   |
+
+#### CRUD Operations (representative)
+
+| Test Case ID | Module        | Test Description                           | Input                       | Expected Result                    | Actual Result                       | Status |
+| ------------ | ------------- | ------------------------------------------ | --------------------------- | ---------------------------------- | ----------------------------------- | ------ |
+| TC-024       | CRUD          | Create → read → update → delete happy path | Valid entity on each module | 201/200/200/200 then 404          | Full lifecycle works on every module| Pass   |
+| TC-025       | CRUD          | Get missing / delete missing / update missing | id 999999 each route     | 404 envelope each                 | 404 returned each                    | Pass   |
+| TC-026       | CRUD          | Failed create changes nothing              | Duplicate/invalid POST      | Row count unchanged               | Count unchanged                      | Pass   |
+| TC-027       | CRUD          | Search + filter + sort                     | Pattern/status/filters      | Only matching rows returned       | Filters applied server-side          | Pass   |
+
+#### Error Handling
+
+| Test Case ID | Module        | Test Description                           | Input                       | Expected Result                    | Actual Result                       | Status |
+| ------------ | ------------- | ------------------------------------------ | --------------------------- | ---------------------------------- | ----------------------------------- | ------ |
+| TC-028       | Error handling | Unknown API route                         | GET /api/nope               | 404 JSON envelope                 | `{success:false}` envelope          | Pass   |
+| TC-029       | Error handling | Health endpoint reports status            | GET /api/health             | 200 ok + database connected       | 200, `status: ok`, db connected     | Pass   |
+| TC-030       | Error handling | Frontend fetch wrapper surfaces ApiError  | Force failing request       | Toast + catch branch              | Error toast shown, no crash         | Pass   |
+
+#### GUI Behaviour (manual verification)
+
+| Test Case ID | Module        | Test Description                           | Input                       | Expected Result                    | Actual Result                       | Status |
+| ------------ | ------------- | ------------------------------------------ | --------------------------- | ---------------------------------- | ----------------------------------- | ------ |
+| TC-031       | GUI           | All 13 admin page routes render            | GET each route              | 200 HTML with sidebar/topbar      | All pages render with shell         | Pass   |
+| TC-032       | GUI           | Responsive layout                          | Viewport < 1024px           | Sidebar collapses; grid stacks    | Verified at 900/1024px              | Pass   |
+| TC-033       | GUI           | Modal open/close (Escape/overlay)          | Open modal, press Esc       | Modal closes, no state corruption | Verified on every form screen       | Pass   |
+| TC-034       | GUI           | Toasts / confirm dialogs / empty + loading + error states | Trigger each state | Correct visual feedback         | Verified per module                  | Pass   |
+
+#### Orders & Billing
+
+| Test Case ID | Module        | Test Description                           | Input                       | Expected Result                    | Actual Result                       | Status |
+| ------------ | ------------- | ------------------------------------------ | --------------------------- | ---------------------------------- | ----------------------------------- | ------ |
+| TC-035       | Orders        | Dine-in order with server totals           | 2×₹100 + 1×₹50, ₹10 off @5% tax | subtotal 250, tax 12, total 252 | 201 with exact totals               | Pass   |
+| TC-036       | Orders        | Takeaway ignores table; dine-in requires it| table with takeaway / none with dine-in | 201 null / 422        | Verified                             | Pass   |
+| TC-037       | Orders        | Invalids: qty 0/−2/1.5/"two", dup lines, unavailable dish, discount>subtotal | Mixed bad payloads | 422/409/400 each          | All rejected                         | Pass   |
+| TC-038       | Orders        | Full status lifecycle + freezing           | Pending→…→Completed; reopen after cancel | 200 each; 409 after cancel | Verified                          | Pass   |
+| TC-039       | Billing       | Every payment method + double-charge block | Pay Cash/UPI/Card/Other; pay again | 200 + Paid; second 409 | Verified                          | Pass   |
+| TC-040       | Billing       | Tax & discount maths, receipt branding     | ₹300 − ₹30 @10%; GET /api/bills/{id} | tax 27, total 297; branding present | Verified                   | Pass   |
+
+#### Inventory & Purchases
+
+| Test Case ID | Module        | Test Description                           | Input                       | Expected Result                    | Actual Result                       | Status |
+| ------------ | ------------- | ------------------------------------------ | --------------------------- | ---------------------------------- | ----------------------------------- | ------ |
+| TC-041       | Inventory     | Stock In/Out/Adjustment + history rows     | In +2.5, Out −4, Adjust 14 | Levels change only via movements; balance_after recorded | Verified on 7.5→6→14 | Pass |
+| TC-042       | Inventory     | Insufficient stock is atomic               | Remove 5 from 3             | 409; qty unchanged; no history row | Verified in DB                      | Pass   |
+| TC-043       | Inventory     | Low-stock flag at/below minimum            | qty = min and below         | Flag true                         | Verified                             | Pass   |
+| TC-044       | Purchases     | Successful purchase updates stock + history| 4 L on 10 L                 | level 14; "Stock In" note `Purchase PUR-xxxx` | Verified               | Pass |
+| TC-045       | Purchases     | Atomic rollback on bad line                | 1 valid + 1 missing line    | 404; no purchase row; stock unchanged | Verified in DB                    | Pass   |
+| TC-046       | Purchases     | Payment status toggle                      | Mark Paid → Unpaid          | Both reflected, totals update      | Verified                             | Pass   |
+
+#### Employees, Salaries & Expenses
+
+| Test Case ID | Module        | Test Description                           | Input                       | Expected Result                    | Actual Result                       | Status |
+| ------------ | ------------- | ------------------------------------------ | --------------------------- | ---------------------------------- | ----------------------------------- | ------ |
+| TC-047       | Employees     | Create with validation; delete guard       | Valid payload; DELETE w/ salaries | 201; 409 message              | Verified                             | Pass   |
+| TC-048       | Salaries      | Net = base + bonus − deduction server-side | 25000 + 2000 − 500          | net 26500 stored                   | Verified                             | Pass   |
+| TC-049       | Salaries      | One record per employee per month          | Second record same month    | 409                                 | Verified                             | Pass   |
+| TC-050       | Expenses      | Allowlist category/method, amount > 0      | "Advertisin", −5, 0         | 422 each                           | Verified                             | Pass   |
+| TC-051       | Expenses      | Date/method defaults + filters             | Omit date/method; filter    | today + Cash; filtered totals match| Verified                             | Pass   |
+
+#### Reports, Customer Menu & Dashboard
+
+| Test Case ID | Module        | Test Description                           | Input                       | Expected Result                    | Actual Result                       | Status |
+| ------------ | ------------- | ------------------------------------------ | --------------------------- | ---------------------------------- | ----------------------------------- | ------ |
+| TC-052       | Reports       | Sales counts only paid orders; periods     | 3 orders across days        | daily/weekly/monthly totals line up| Verified                             | Pass   |
+| TC-053       | Reports       | Profit arithmetic                          | Known values                | sales − purchases − salaries − expenses exactly | Verified               | Pass   |
+| TC-054       | Reports       | Bad period/mode values                     | `period=yearly`, `group_by=bogus` | 422 each                    | Verified                             | Pass   |
+| TC-055       | Customer menu | Public feed shape + no internal fields     | GET /api/public/menu        | `{cafe, categories}`; no ids/timestamps | Verified on live server          | Pass |
+| TC-056       | Customer menu | Inactive/empty categories hidden; sold-out visible + flagged | Mixed menu | Sections filtered; sold-out flagged | Verified                    | Pass   |
+| TC-057       | Customer menu | Page has no admin shell                    | Page source of `/menu/cafe` | no `common.js`, no `data-page`     | Verified                             | Pass   |
+| TC-058       | Dashboard     | Live stats recompute at request time       | New paid order, expense, low-stock item | today_sales/expenses/low_stock update | Verified                  | Pass |
+| TC-059       | Dashboard     | Top sellers ignore cancelled orders; trend 7 days | Seed orders incl. cancelled | Ranking correct; 7 labels/amounts  | Verified                             | Pass   |
+| TC-060       | Dashboard     | Empty database renders zeros, no crash     | Fresh DB                    | 200 with zeroed figures            | Verified                             | Pass   |
+
 ## Chapter 9 — Implementation
 
 ### Installation
@@ -778,7 +1058,41 @@ Open http://127.0.0.1:8000. The database creates itself on first run. For auto-r
 
 ### User Training
 
-Current UI requires no training beyond navigation; module-specific training will be documented as phases complete.
+Training is a 30–45 minute walkthrough of the screens below. Every form follows the same pattern (modal → valid form → toast), and each screen exposes its own confirm dialogs, so staff only need to learn the screens relevant to their role:
+
+* **Cashier** — Orders (new order modal, status workflow) and Billing (mark paid, receipt/print)
+* **Store in-charge** — Inventory (stock movements), Suppliers, Purchases
+* **Owner/Manager** — Dashboard, Reports, Salaries, Expenses, Settings
+
+### User Manual
+
+**1. Dashboard (`/`)** — landing page. Read the eight stat cards (today's sales/orders, pending orders, unpaid bills, menu items, low stock, employees, monthly expenses), the 7-day sales chart, top sellers and recent orders. No editing from here; click through to Orders/Reports.
+
+**2. Menu Management (`/menu`)** — two sections: **Categories** and **Menu items**. Use "+ Add category" / "+ Add item" buttons, or row Edit/Delete. Use the toolbar search and dropdowns to filter. Deleting a category that still has items is refused.
+
+**3. Customer Menu (`/customer-menu`)** — copy the public link (`/menu/cafe`) and share it. The page also previews how many sections/items are published.
+
+**4. Orders (`/orders`)** — "+ New order" opens the order modal: choose Dine-in/Takeaway (table number only for dine-in), pick dishes from the item list (duplicates merge into one line, quantity steppers), apply a discount if needed and view live totals. Place to save. Row actions: View (detail + status change), Cancel, Delete (cancelled orders only). Statuses: Pending → Preparing → Ready → Completed.
+
+**5. Billing (`/billing`)** — find the bill, "Mark paid", choose Cash/UPI/Card/Other. "Receipt" opens the printable paper bill; "Print receipt" prints it.
+
+**6. Suppliers (`/suppliers`)** — add/edit/delete suppliers; search by name/contact/material; the Active checkbox hides/show inactive rows.
+
+**7. Inventory (`/inventory`)** — materials table with current stock. "Stock" records a movement: Stock In (+), Stock Out (−, blocked if insufficient), or Adjustment (set to counted total). "History" shows that material's movement trail; the page footer lists the latest movements across all materials.
+
+**8. Purchases (`/purchases`)** — "+ New purchase": pick supplier, date, and materials (quantity + unit cost). Saving records the purchase and increases inventory automatically. Mark purchases Paid/Unpaid from the row actions.
+
+**9. Employees (`/salaries`)** — self-explanatory CRUD. An employee with salary history cannot be deleted until that history is removed.
+
+**10. Salaries (`/salaries`)** — "+ Record salary": choose employee + month, adjust bonus/deduction; net salary is computed and stored server-side. One record per employee per month.
+
+**11. Expenses (`/expenses`)** — record title, category, amount, date, payment method, notes. Filters at the top narrow the list and stat cards.
+
+**12. Reports (`/reports`)** — pick a tab (Sales/Orders/Inventory/Purchases/Salaries/Expenses/Profit), set dates and mode, Apply filters, Print for a paper copy.
+
+**13. Settings (`/settings`)** — cafe name, address, phone, email, tax %, currency, logo and receipt footer. Tax changes affect **new** orders only; historical bills keep their original tax.
+
+**Keyboard/backout rules** — Escape closes any modal; refresh reloads; every destructive action asks for confirmation first.
 
 ### Limitations
 
@@ -805,6 +1119,7 @@ QR-code menu access, online ordering/payments, multi-branch support, cloud backu
 * SQLite documentation — https://www.sqlite.org/docs.html
 * Pydantic documentation — https://docs.pydantic.dev/
 * uv documentation — https://docs.astral.sh/uv/
+* pytest documentation — https://docs.pytest.org/
 * MDN Web Docs (HTML/CSS/JavaScript) — https://developer.mozilla.org/
 
 ## Glossary
@@ -816,7 +1131,12 @@ QR-code menu access, online ordering/payments, multi-branch support, cloud backu
 | REST API    | HTTP interface returning JSON                               |
 | Envelope    | Standard JSON wrapper for success/error responses           |
 | Lifespan    | FastAPI startup/shutdown hook used to initialize the DB     |
+| Singleton   | A table that always holds exactly one row (`cafe_settings`) |
+| Dine-in / Takeaway | Eat-in at a table number / parcel out, no table       |
+| UPI         | Unified Payments Interface (one of the four payment methods)|
+| Low stock   | `current_quantity <= minimum_stock` (so out-of-stock is always flagged) |
 | Estimated Profit | Sales − Purchases − Salaries − Expenses; an approximate management figure (salaries matched by month) |
+| Snapshot    | A copy of foreign-field text (dish/supplier/material name) frozen onto a row so history survives renames |
 
 ## Development Phases Roadmap
 
@@ -835,6 +1155,7 @@ QR-code menu access, online ordering/payments, multi-branch support, cloud backu
 | 12    | Salaries                        | Implemented |
 | 13    | Expenses                        | Implemented |
 | 14    | Reports                         | Implemented |
-| 15    | Live Dashboard                  | Planned     |
-| 16–17 | System Testing & Final Docs     | Planned     |
+| 15    | Live Dashboard                  | Implemented |
+| 16    | System Testing                  | Implemented |
+| 17    | Final Documentation             | Implemented |
 

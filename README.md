@@ -2,7 +2,7 @@
 
 A simple web-based Cafe Management System built for a final-year BCA/BBA Computer Application academic project. It manages the daily operations of a small or medium-sized cafe: menu, orders, billing, inventory, suppliers, purchases, employees, salaries, expenses and reports.
 
-## Current Status — Phases 1–15 complete (Foundation · Settings · Menu · Customer Digital Menu · Orders · Billing · Suppliers · Inventory · Purchases · Employees · Salaries · Expenses · Reports · Dashboard)
+## Current Status — Phases 1–17 complete (Foundation · Settings · Menu · Customer Digital Menu · Orders · Billing · Suppliers · Inventory · Purchases · Employees · Salaries · Expenses · Reports · Dashboard · System Testing · Final Documentation)
 
 Implemented so far:
 
@@ -25,9 +25,9 @@ Implemented so far:
 - Expenses: category/payment-method allowlists, date filters and a summary envelope for stat cards
 - Reports: seven read-only views (sales daily/weekly/monthly, orders, inventory, purchases, salaries, expenses) plus an Estimated Profit summary (Sales − Purchases − Salaries − Expenses)
 - Dashboard: eight live stat cards (today's sales/orders, pending orders, unpaid bills, menu items, low stock, employees, monthly expenses), a 7-day sales trend bar chart, top-sellers ranking and a recent-orders table with skeleton loading and an error/retry state
-- Automated tests (368 collected; 367 passed — the one blocked test is a Windows file-lock flake when a running server holds `data/cafe.db`)
+- Automated tests (**368 collected / 368 passed** on 2026-08-30). Stop the server before running (`uv run pytest`) — the one environmental quirk is a Windows file-lock: the database-file test needs to unlink `data/cafe.db`, which a running `cafe-server` holds open
 
-Not yet implemented (planned phases): the final testing and documentation pass (Phases 16–17).
+Not yet implemented (future enhancements only): authentication/login, QR-based customer ordering, online payments, multi-branch support, cloud backup, WhatsApp notifications and GST invoices.
 
 ## Technology Stack
 
@@ -105,7 +105,7 @@ Environment overrides: `CAFE_HOST`, `CAFE_PORT`.
 
 | Route            | Screen          | Status                        |
 | ---------------- | --------------- | ----------------------------- |
-| `/`              | Dashboard       | Shell + placeholders (Phase 1)|
+| `/`              | Dashboard       | Implemented (Phase 15)      |
 | `/menu`          | Menu Management | Implemented (Phases 3–4)      |
 | `/customer-menu` | Customer Menu   | Implemented (Phase 5)         |
 | `/orders`        | Orders          | Implemented (Phase 6)         |

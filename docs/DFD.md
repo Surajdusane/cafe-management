@@ -216,5 +216,5 @@ Admin/Staff
 | Dashboard data                | P12 → Browser        | 8 stat-card figures, 7-day sales trend, top sellers (ignoring cancelled orders), recent orders — all live reads, no writes |
 
 ---
-*Last updated: Phase 15 completion (read-only Dashboard process P12 added; low-stock warning noted on the dashboard).*
-*Previous: Phase 13–14 completion (Expense recording and read-only Report processes added). Employees & Salaries moved from planned to implemented in that update.*
+*Last updated: Phase 17 completion (final review — processes unchanged, verified against the running application; P12 Dashboard and P14 Reports remain read-only).*
+*Previous: Phase 15 completion (read-only Dashboard process P12 added; low-stock warning noted on the dashboard).*

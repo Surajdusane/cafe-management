@@ -7,9 +7,12 @@ from sqlalchemy import delete, select
 
 from app.core.database import SessionLocal
 from app.main import app
+from app.models.category import Category
 from app.models.employee import Employee
 from app.models.expense import Expense
 from app.models.inventory import InventoryItem, InventoryTransaction
+from app.models.menu_item import MenuItem
+from app.models.order import Order, OrderItem
 
 RUN_TAG = uuid.uuid4().hex[:6]
 
@@ -49,14 +52,29 @@ def snapshot_settings(client):
 def cleanup_tagged_rows():
     def purge():
         with SessionLocal() as db:
+            # Names built by UNIQ() end with a per-call sequence number, so the
+            # tag sits in the middle — match it anywhere with a trailing wildcard.
+            order_ids = db.scalars(
+                select(OrderItem.order_id).where(OrderItem.item_name.like(f"%#{RUN_TAG}%"))
+            ).all()
+            if order_ids:
+                order_ids = set(order_ids)
+                db.execute(delete(OrderItem).where(OrderItem.order_id.in_(order_ids)))
+                db.execute(delete(Order).where(Order.id.in_(order_ids)))
+            menu_ids = db.scalars(
+                select(MenuItem.id).where(MenuItem.name.like(f"%#{RUN_TAG}%"))
+            ).all()
+            if menu_ids:
+                db.execute(delete(MenuItem).where(MenuItem.id.in_(menu_ids)))
+            db.execute(delete(Category).where(Category.name.like(f"%#{RUN_TAG}%")))
             employee_ids = db.scalars(
-                select(Employee.id).where(Employee.name.like(f"%#{RUN_TAG}"))
+                select(Employee.id).where(Employee.name.like(f"%#{RUN_TAG}%"))
             ).all()
             if employee_ids:
                 db.execute(delete(Employee).where(Employee.id.in_(employee_ids)))
-            db.execute(delete(Expense).where(Expense.title.like(f"%#{RUN_TAG}")))
+            db.execute(delete(Expense).where(Expense.title.like(f"%#{RUN_TAG}%")))
             item_ids = db.scalars(
-                select(InventoryItem.id).where(InventoryItem.name.like(f"%#{RUN_TAG}"))
+                select(InventoryItem.id).where(InventoryItem.name.like(f"%#{RUN_TAG}%"))
             ).all()
             if item_ids:
                 db.execute(

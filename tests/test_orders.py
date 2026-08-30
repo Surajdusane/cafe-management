@@ -3,9 +3,12 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import delete, select
 
 from app.core.database import SessionLocal
 from app.main import app
+from app.models.category import Category
+from app.models.menu_item import MenuItem
 from app.models.order import Order
 
 # Tagged names keep this module isolated from real data and previous runs.
@@ -94,6 +97,13 @@ def order_environment(client):
             orders = db.query(Order).filter(Order.id.in_(created_order_ids)).all()
             for order in orders:
                 db.delete(order)  # ORM cascade removes the item lines
+            db.commit()
+        tagged = db.scalars(
+            select(Category.id).where(Category.name.like(f"%#{RUN_TAG}"))
+        ).all()
+        if tagged:
+            db.execute(delete(MenuItem).where(MenuItem.category_id.in_(tagged)))
+            db.execute(delete(Category).where(Category.id.in_(tagged)))
             db.commit()
         # Restore whatever settings existed before this module ran.
         client.put("/api/settings", json=original)

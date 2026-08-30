@@ -1099,5 +1099,5 @@ API.delete("/api/items/1")
 It parses the envelope, throws `ApiError(message, status, errors)` on failure and maps network failures to a friendly message. Toast notifications are provided by `UI.toast(message, type)` in `common.js`. The public menu page reuses `api.js` but not `common.js`.
 
 ---
-*Last updated: Phase 15 completion (dashboard endpoint `GET /api/dashboard` added).*
-*Previous: Phase 10 completion (Purchases endpoints). Suppliers and Inventory endpoints documented together with their phases (8–9).*
+*Last updated: Phase 17 completion (final review — endpoint surface unchanged from Phase 15, verified against the running application and the 368-test suite).*
+*Previous: Phase 15 completion (dashboard endpoint `GET /api/dashboard` added).*
