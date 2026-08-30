@@ -18,6 +18,7 @@ A final-year project documentation for a web-based Cafe Management System develo
 | 1.7     | 2026-08-23 | Phase 10 Purchase Management implemented (multi-item purchases with server-calculated totals, automatic inventory update in one transaction, purchase history with search/date/supplier/payment filters) |
 | 1.8     | 2026-08-29 | Phases 11–14 Employees, Salaries, Expenses & Reports implemented (employee CRUD with salary-delete guard; monthly salary records with server-calculated net salary; expense recording with category/payment-method allowlists and filters; report module with seven tabs — sales, orders, inventory, purchases, salaries, expenses and estimated profit) |
 | 1.9     | 2026-08-29 | Phase 15 Live Dashboard implemented (GET /api/dashboard aggregating today's sales/orders, pending orders, unpaid bills, low stock, employee count and monthly expenses; 7-day sales trend chart; top sellers; recent orders; skeleton loading, error panel with retry, responsive 4-column stat grid) |
+| 1.10    | 2026-08-30 | Dashboard timezone fix — order `created_at` is stored naive-UTC, but "today" must mean the local day; the dashboard now converts each order to the local calendar date before bucketing today's sales/orders and the 7-day trend, so early-morning (00:00–05:29 IST) orders are no longer lost from today's totals |
 
 ---
 

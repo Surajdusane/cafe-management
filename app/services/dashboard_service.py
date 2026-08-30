@@ -14,7 +14,7 @@ Definitions mirror the rest of the system:
                       cancelled orders (a cancelled order never sold anything).
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -32,6 +32,16 @@ RECENT_ORDERS_LIMIT = 8
 
 def _round(value: float) -> float:
     return round(value or 0.0, 2)
+
+
+def _local_date(value: datetime) -> date:
+    """Convert a naive-UTC stored timestamp to the cafe's local calendar date.
+
+    `created_at` is saved as UTC (SQLite CURRENT_TIMESTAMP), but "today" must
+    mean the local day — otherwise orders taken before 05:30 local time (UTC+5:30
+    India, where local date is already one day ahead) would vanish from today's
+    sales. Naive rows are interpreted as UTC and shifted to the local zone."""
+    return value.replace(tzinfo=timezone.utc).astimezone().date()
 
 
 def _serialize_order(order: Order) -> dict:
@@ -56,11 +66,11 @@ def dashboard_summary(db: Session) -> dict:
 
     orders = db.scalars(select(Order)).all()
 
-    today_orders = sum(1 for order in orders if order.created_at.date() == today)
+    today_orders = sum(1 for order in orders if _local_date(order.created_at) == today)
     today_sales = sum(
         order.total
         for order in orders
-        if order.created_at.date() == today and order.payment_status == "Paid"
+        if _local_date(order.created_at) == today and order.payment_status == "Paid"
     )
     pending_orders = sum(1 for order in orders if order.status in OPEN_ORDER_STATUSES)
     unpaid_bills = sum(
@@ -90,11 +100,11 @@ def dashboard_summary(db: Session) -> dict:
         )
     ) or 0.0
 
-    # Sales trend: a rolling last-7-days window, one paid-amount per day.
+    # Sales trend: a rolling last-7-days window (local calendar days).
     trend_start = today - timedelta(days=6)
     per_day: dict[date, dict] = {}
     for order in orders:
-        order_date = order.created_at.date()
+        order_date = _local_date(order.created_at)
         if order_date < trend_start or order_date > today:
             continue
         bucket = per_day.setdefault(order_date, {"amount": 0.0, "orders": 0})
